@@ -679,8 +679,12 @@ class FinanceIntegrationTest {
             try (var pdf = org.apache.pdfbox.Loader.loadPDF(path.toFile())) {
                 String text = new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
                 assertThat(text).contains("해당 기간 발생액", "누계 제외", "기간 합계");
+                assertThat(text).contains(i == 0 ? "주간 합계" : i == 1 ? "월간 합계" : "연간 합계");
                 if (i == 1)
-                    assertThat(text).contains("2044-02-29").doesNotContain("2044-03-01");
+                    assertThat(text).contains("2044-02-29", "50,000원", "10,000원").doesNotContain("2044-03-01",
+                            "220,000원");
+                if (i == 2)
+                    assertThat(text).contains("220,000원", "10,000원");
                 boolean colored = false;
                 var renderer = new org.apache.pdfbox.rendering.PDFRenderer(pdf);
                 for (int page = 0; page < pdf.getNumberOfPages(); page++) {

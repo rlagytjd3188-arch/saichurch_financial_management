@@ -53,10 +53,10 @@ def main():
                     continue
                 relative = item.filename.removeprefix(root + '/')
                 out.writestr('ChurchSteward/runtime/' + relative, runtime.read(item.filename))
-            out.write(args.jar, 'ChurchSteward/app/church-steward-1.5.1.jar')
-            out.writestr('ChurchSteward/app/ChurchSteward.cfg', '[Application]\r\napp.mainjar=$APPDIR\\church-steward-1.5.1.jar\r\n\r\n[JavaOptions]\r\njava-options=-Djpackage.app-version=1.5.1\r\n')
-            out.writestr('ChurchSteward/app/saichurch-1.5.1.txt', 'Sai Church customized application 1.5.1\n')
-            for file in ['Start-Windows.cmd', 'README.md', 'LICENSE', 'LICENSE-ko', 'docs/saichurch-1.3.md', 'docs/updates-1.5.0.md', 'docs/updates-1.5.1.md']:
+            out.write(args.jar, 'ChurchSteward/app/church-steward-1.5.2.jar')
+            out.writestr('ChurchSteward/app/ChurchSteward.cfg', '[Application]\r\napp.mainjar=$APPDIR\\church-steward-1.5.2.jar\r\n\r\n[JavaOptions]\r\njava-options=-Djpackage.app-version=1.5.2\r\n')
+            out.writestr('ChurchSteward/app/saichurch-1.5.2.txt', 'Sai Church customized application 1.5.2\n')
+            for file in ['Start-Windows.cmd', 'README.md', 'LICENSE', 'LICENSE-ko', 'docs/saichurch-1.3.md', 'docs/updates-1.5.0.md', 'docs/updates-1.5.1.md', 'docs/updates-1.5.2.md']:
                 target = Path(file).name
                 out.write(repo / file, 'ChurchSteward/' + target)
     with zipfile.ZipFile(args.output) as result:

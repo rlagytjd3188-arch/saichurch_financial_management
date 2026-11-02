@@ -17,8 +17,10 @@ final class PeriodTrendSection {
         if (period.equals("월간"))
             rows = weeklyRows(rows);
         long step = period.equals("월간") ? 500_000 : period.equals("주간") ? 100_000 : 0;
-        draw(canvas, period + " 수입·지출 그래프 (해당 기간 발생액)", rows, false, step);
-        draw(canvas, period + " 헌금 그래프 (해당 기간 발생액)", rows, true, step);
+        var chartRows = new java.util.ArrayList<>(rows);
+        chartRows.add(sum(period + " 합계", rows));
+        draw(canvas, period + " 수입·지출 그래프 (해당 기간 발생액)", chartRows, false, step);
+        draw(canvas, period + " 헌금 그래프 (해당 기간 발생액)", chartRows, true, step);
         canvas.section(period + " 기간별 금액 (누계 제외)", ReportFonts.SIZE_SECTION, canvas.getLeft());
         ReportTable table = new ReportTable(canvas.getStyle(), 8f, new Column("일자 / 월", 0, ReportAlign.LEFT),
                 new Column("수입", 0, ReportAlign.RIGHT), new Column("지출", 0, ReportAlign.RIGHT),
@@ -88,6 +90,17 @@ final class PeriodTrendSection {
             canvas.moveDown(height + 12);
             return;
         }
+        var totalRow = rows.getLast();
+        var totalFont = canvas.getStyle().bold(6f);
+        double amountWidth = gift ? ReportText.width(String.format("%,d원", totalRow.offerings()), totalFont)
+                : 2 * Math.max(ReportText.width(String.format("%,d원", totalRow.income()), totalFont),
+                        ReportText.width(String.format("%,d원", totalRow.expense()), totalFont));
+        double totalWidth = Math.min((right - left) / 2, Math.max((right - left) / (rows.size() + .5),
+                Math.max(amountWidth + 12, ReportText.width(totalRow.label(), canvas.getStyle().bold(7f)) + 12)));
+        double slot = (right - left - totalWidth) / (rows.size() - .5);
+        double separator = right - totalWidth - slot / 4;
+        canvas.fillRect(separator, plotTop, right - separator, bottom - plotTop, UIColors.REPORT_FILL);
+        canvas.line(separator, plotTop, separator, bottom, .7, UIColors.REPORT_LINE);
         long labelStride = Math.max(1,
                 (long) Math.ceil(intervals / Math.max(1, (bottom - plotTop) / (lineHeight + 2))));
         long gridStride = Math.max(1, (intervals + 1999) / 2000);
@@ -100,7 +113,7 @@ final class PeriodTrendSection {
                         left - 5, y + ascent / 2 - 1, UIColors.REPORT_TEXT_SUB);
         }
         int groups = gift ? 1 : 2;
-        double slot = (right - left) / rows.size(), width = Math.min(15, slot / (groups + 1));
+        double width = Math.min(15, slot / (groups + 1));
         double widest = 0;
         for (var r : rows)
             widest = Math.max(widest,
@@ -108,7 +121,8 @@ final class PeriodTrendSection {
         int stride = Math.max(Math.max(1, (int) Math.ceil(rows.size() / 12.0)), (int) Math.ceil((widest + 5) / slot));
         for (int i = 0; i < rows.size(); i++) {
             var r = rows.get(i);
-            double center = left + slot * (i + .5);
+            boolean total = i == rows.size() - 1;
+            double center = total ? right - totalWidth / 2 : left + slot * (i + .5);
             for (int group = 0; group < groups; group++) {
                 long accumulated = 0;
                 for (var p : parts(r, gift)) {
@@ -122,8 +136,8 @@ final class PeriodTrendSection {
                                 p.category().awtColor());
                     accumulated = next;
                 }
-                if (accumulated > 0 && step > 0) {
-                    var valueFont = canvas.getStyle().regular(6f);
+                if ((accumulated > 0 && step > 0) || total) {
+                    var valueFont = total ? canvas.getStyle().bold(6f) : canvas.getStyle().regular(6f);
                     double valueY = bottom - (bottom - plotTop) * (double) accumulated / max - 4;
                     canvas.text(String.format("%,d원", accumulated), valueFont,
                             gift ? ReportAlign.CENTER : group == 0 ? ReportAlign.RIGHT : ReportAlign.LEFT,
@@ -132,7 +146,7 @@ final class PeriodTrendSection {
                 }
             }
             if ((i % stride == 0 && (rows.size() - 1 - i >= stride || i == 0)) || i == rows.size() - 1)
-                canvas.text(axisLabel(r.label()), font, ReportAlign.CENTER,
+                canvas.text(axisLabel(r.label()), total ? canvas.getStyle().bold(7f) : font, ReportAlign.CENTER,
                         center, bottom + ascent + 4);
         }
         canvas.moveDown(height + 12);
@@ -160,27 +174,30 @@ final class PeriodTrendSection {
             weeks.computeIfAbsent(week, _ -> new java.util.ArrayList<>()).add(r);
         }
         var result = new java.util.ArrayList<PeriodTrendDto>();
-        for (var week : weeks.values()) {
-            long income = 0, expense = 0, gifts = 0;
-            var amounts = new java.util.LinkedHashMap<org.church.steward.finance.ChartCategory, Long>();
-            var offerings = new java.util.LinkedHashMap<org.church.steward.finance.ChartCategory, Long>();
-            for (var r : week) {
-                income = Math.addExact(income, r.income());
-                expense = Math.addExact(expense, r.expense());
-                gifts = Math.addExact(gifts, r.offerings());
-                for (var p : parts(r, false))
-                    amounts.merge(p.category(), p.amount(), Math::addExact);
-                for (var p : parts(r, true))
-                    offerings.merge(p.category(), p.amount(), Math::addExact);
-            }
-            result.add(new PeriodTrendDto(week.getFirst().label() + " ~ " + week.getLast().label(), income, expense,
-                    gifts,
-                    amounts.entrySet().stream()
-                            .map(e -> new org.church.steward.finance.ChartPart(e.getKey(), e.getValue())).toList(),
-                    offerings.entrySet().stream()
-                            .map(e -> new org.church.steward.finance.ChartPart(e.getKey(), e.getValue())).toList()));
-        }
+        for (var week : weeks.values())
+            result.add(sum(week.getFirst().label() + " ~ " + week.getLast().label(), week));
         return result;
+    }
+
+    /** 차트 전용 합계. 원본 일별/주별 행과 금액표에는 합계 행을 추가하지 않는다. */
+    private static PeriodTrendDto sum(String label, List<PeriodTrendDto> rows) {
+        long income = 0, expense = 0, gifts = 0;
+        var amounts = new java.util.LinkedHashMap<org.church.steward.finance.ChartCategory, Long>();
+        var offerings = new java.util.LinkedHashMap<org.church.steward.finance.ChartCategory, Long>();
+        for (var r : rows) {
+            income = Math.addExact(income, r.income());
+            expense = Math.addExact(expense, r.expense());
+            gifts = Math.addExact(gifts, r.offerings());
+            for (var p : parts(r, false))
+                amounts.merge(p.category(), p.amount(), Math::addExact);
+            for (var p : parts(r, true))
+                offerings.merge(p.category(), p.amount(), Math::addExact);
+        }
+        return new PeriodTrendDto(label, income, expense, gifts,
+                amounts.entrySet().stream()
+                        .map(e -> new org.church.steward.finance.ChartPart(e.getKey(), e.getValue())).toList(),
+                offerings.entrySet().stream()
+                        .map(e -> new org.church.steward.finance.ChartPart(e.getKey(), e.getValue())).toList());
     }
 
     private static List<org.church.steward.finance.ChartPart> parts(PeriodTrendDto row, boolean gift) {
