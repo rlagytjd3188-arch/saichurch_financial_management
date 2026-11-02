@@ -52,6 +52,13 @@ class MonthlyTrendChart extends JComponent {
     private List<MonthlyTrendDto> data = List.of();
     /** 가로축의 달 이름에 연도를 붙일지 여부. 기간이 열두 달을 넘어 같은 달이 두 번 나올 때만 붙인다. */
     private boolean withYear;
+    private org.church.steward.finance.PledgeService.Summary pledges;
+
+    void setPledges(org.church.steward.finance.PledgeService.Summary pledges) {
+        this.pledges = pledges;
+        repaint();
+    }
+
     private int hoveredIndex = -1;
 
     /** 마지막으로 그린 차트 영역의 왼쪽 끝과 한 달의 폭. 마우스 위치를 달로 바꿀 때 쓴다. */
@@ -108,8 +115,7 @@ class MonthlyTrendChart extends JComponent {
     static JComponent createLegend() {
         JPanel legend = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         legend.setOpaque(false);
-        legend.add(createLegendItem("수입", UIColors.INCOME));
-        legend.add(createLegendItem("지출", UIColors.EXPENSE));
+        legend.add(new SubFieldLabel("왼쪽 수입 · 오른쪽 지출", ComponentSize.SMALL));
         return legend;
     }
 
@@ -132,8 +138,18 @@ class MonthlyTrendChart extends JComponent {
         // 회계 연도가 두 해에 걸칠 수 있으므로 툴팁에는 항상 연도를 함께 적는다.
         String title = yearMonth.getYear() + "년 " + yearMonth.getMonthValue() + MONTH_SUFFIX;
         // 툴팁에서 줄을 바꾸려면 HTML을 써야 한다.
-        return String.format("<html><b>%s</b><br>수입 %,d원<br>지출 %,d원</html>",
-                title, month.getIncome(), month.getExpense());
+        StringBuilder text = new StringBuilder(
+                String.format("<html><b>%s</b><br>수입 %,d원<br>지출 %,d원", title, month.getIncome(), month.getExpense()));
+        for (var p : month.getBreakdown())
+            text.append("<br>")
+                    .append(p.category().label().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+                    .append(String.format(" %,d원", p.amount()));
+        if (pledges != null)
+            for (var m : pledges.monthly())
+                if (m.label().equals(month.getYearMonth()))
+                    text.append(String.format("<br>약정 목표(100%%) %,d원 / 납부 %,d원 / 달성률 %s", m.target(), m.actual(),
+                            m.percent() == null ? "약정 없음" : m.percent() + "%"));
+        return text.append("</html>").toString();
     }
 
     private void setHoveredIndex(int index) {
@@ -176,12 +192,32 @@ class MonthlyTrendChart extends JComponent {
             for (MonthlyTrendDto month : data) {
                 max = Math.max(max, Math.max(month.getIncome(), month.getExpense()));
             }
+            if (pledges != null)
+                for (var m : pledges.monthly())
+                    max = Math.max(max, m.target());
             if (max <= 0) {
                 slotWidth = 0;
                 paintEmptyMessage(g2, metrics);
                 return;
             }
 
+            java.util.Map<String, org.church.steward.finance.ChartCategory> legend = new java.util.LinkedHashMap<>();
+            for (var m : data)
+                for (var p : m.getBreakdown())
+                    legend.put(p.category().key(), p.category());
+            if (pledges != null && pledges.target() > 0)
+                legend.put("pledgeTarget",
+                        new org.church.steward.finance.ChartCategory("pledgeTarget", "약정100%(점선)", "LINE", "#627D98"));
+            int legendX = 0, legendHeight = legend.isEmpty() ? 0 : metrics.getHeight();
+            for (var c : legend.values()) {
+                String label = c.label().replace("헌금수입 / ", "");
+                int w = metrics.stringWidth(label) + 18;
+                if (legendX + w > getWidth()) {
+                    legendX = 0;
+                    legendHeight += metrics.getHeight();
+                }
+                legendX += w;
+            }
             long step = niceStep(max);
             long top = (max + step - 1) / step * step;
 
@@ -192,7 +228,7 @@ class MonthlyTrendChart extends JComponent {
 
             // 맨 위 눈금의 글자가 잘리지 않도록 글자 높이의 절반만큼 위를 비운다.
             int plotTop = metrics.getAscent() / 2 + 1;
-            int plotBottom = getHeight() - metrics.getHeight() - 4;
+            int plotBottom = getHeight() - metrics.getHeight() - legendHeight - 4;
             int plotHeight = plotBottom - plotTop;
             plotLeft = axisWidth + AXIS_LABEL_GAP;
             int plotWidth = getWidth() - plotLeft;
@@ -237,17 +273,69 @@ class MonthlyTrendChart extends JComponent {
                 int slotCenter = slotLeft + (int) Math.round(slotWidth / 2);
                 int groupLeft = slotCenter - groupWidth / 2;
 
-                paintBar(g2, groupLeft, barWidth, month.getIncome(), top, plotBottom, plotHeight, UIColors.INCOME);
-                paintBar(g2, groupLeft + barWidth + BAR_GAP, barWidth, month.getExpense(), top, plotBottom,
-                        plotHeight, UIColors.EXPENSE);
+                paintParts(g2, groupLeft, barWidth, month, "INCOME", top, plotBottom, plotHeight);
+                paintParts(g2, groupLeft + barWidth + BAR_GAP, barWidth, month, "EXPENSE", top, plotBottom, plotHeight);
 
                 String label = showsFullLabel ? fullLabelOf(yearMonth) : String.valueOf(yearMonth.getMonthValue());
                 g2.setColor(i == hoveredIndex ? UIColors.TEXT_MAIN : UIColors.TEXT_SUB);
                 g2.drawString(label, slotCenter - metrics.stringWidth(label) / 2,
                         plotBottom + 4 + metrics.getAscent());
             }
+            if (pledges != null) {
+                g2.setColor(java.awt.Color.decode("#627D98"));
+                g2.setStroke(new java.awt.BasicStroke(1.5f, java.awt.BasicStroke.CAP_BUTT,
+                        java.awt.BasicStroke.JOIN_ROUND, 1, new float[] { 5, 3 }, 0));
+                int px = -1, py = 0;
+                for (int i = 0; i < data.size(); i++) {
+                    var label = data.get(i).getYearMonth();
+                    var target = pledges.monthly().stream().filter(m -> m.label().equals(label)).findFirst();
+                    if (target.isEmpty()) {
+                        px = -1;
+                        continue;
+                    }
+                    int x = plotLeft + (int) ((i + .5) * slotWidth),
+                            y = plotBottom - (int) ((double) plotHeight * target.get().target() / top);
+                    if (px >= 0)
+                        g2.drawLine(px, py, x, y);
+                    px = x;
+                    py = y;
+                }
+            }
+            int lx = 0, ly = plotBottom + metrics.getHeight() * 2;
+            for (var c : legend.values()) {
+                String label = c.label().replace("헌금수입 / ", "");
+                int w = metrics.stringWidth(label) + 18;
+                if (lx + w > getWidth()) {
+                    lx = 0;
+                    ly += metrics.getHeight();
+                }
+                g2.setColor(c.awtColor());
+                g2.fillRect(lx, ly - metrics.getAscent() + 2, 7, 7);
+                g2.setColor(UIColors.TEXT_SUB);
+                g2.drawString(label, lx + 10, ly);
+                lx += w;
+            }
         } finally {
             g2.dispose();
+        }
+    }
+
+    private void paintParts(Graphics2D g, int x, int width, MonthlyTrendDto month, String type, long top, int bottom,
+            int height) {
+        var parts = month.getBreakdown().stream().filter(p -> p.category().type().equals(type)).toList();
+        if (parts.isEmpty()) {
+            paintBar(g, x, width, type.equals("INCOME") ? month.getIncome() : month.getExpense(), top, bottom, height,
+                    type.equals("INCOME") ? UIColors.INCOME : UIColors.EXPENSE);
+            return;
+        }
+        long total = 0;
+        for (var p : parts) {
+            long next = Math.addExact(total, p.amount());
+            int y1 = bottom - (int) Math.round((double) height * total / top),
+                    y2 = bottom - (int) Math.round((double) height * next / top);
+            g.setColor(p.category().awtColor());
+            g.fillRect(x, y2, width, Math.max(0, y1 - y2));
+            total = next;
         }
     }
 

@@ -44,7 +44,7 @@ public final class ReportTable {
     private record TextCell(String text) implements Cell {
     }
 
-    private record BarCell(Double ratio) implements Cell {
+    private record BarCell(Double ratio, java.awt.Color color) implements Cell {
     }
 
     private record Row(RowStyle style, int indent, List<Cell> cells) {
@@ -98,8 +98,12 @@ public final class ReportTable {
      *
      * @param ratio 채울 비율(1이 가득). 1을 넘으면 가득 채우고, null이면 빈 막대를 그린다.
      */
+    public static Cell bar(Double ratio, java.awt.Color color) {
+        return new BarCell(ratio, color);
+    }
+
     public static Cell bar(Double ratio) {
-        return new BarCell(ratio);
+        return new BarCell(ratio, UIColors.REPORT_BAR);
     }
 
     /**
@@ -292,9 +296,9 @@ public final class ReportTable {
 
         double ratio = cell.ratio() == null ? 0 : Math.max(0, Math.min(1, cell.ratio()));
         if (ratio > 0) {
-            canvas.fillRect(barX, barY, barWidth * ratio, barHeight, UIColors.REPORT_BAR);
+            canvas.fillRect(barX, barY, barWidth * ratio, barHeight, cell.color());
         }
-        canvas.strokeRect(barX, barY, barWidth, barHeight, BAR_LINE, UIColors.REPORT_BAR);
+        canvas.strokeRect(barX, barY, barWidth, barHeight, BAR_LINE, cell.color());
     }
 
     /**

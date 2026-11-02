@@ -17,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 @Transactional
 public class FinanceEngine {
     private final JdbcTemplate jdbc;
+    private final LedgerChartService ledgerCharts;
+    private final PledgeService pledges;
     private final org.church.steward.infrastructure.security.UserSessionHolder sessions;
 
     public record Line(long accountId, long debit, long credit) {
@@ -36,7 +38,16 @@ public class FinanceEngine {
         var matches = query(
                 "SELECT T.ID FROM BUDGET B JOIN OFFERING_TYPE T ON T.NAME=B.NAME AND T.ACTIVE=TRUE WHERE B.ID=?",
                 budget);
-        return matches.size() == 1 ? number(matches.getFirst().get("ID")) : null;
+        if (matches.size() == 1)
+            return number(matches.getFirst().get("ID"));
+        var category = ledgerCharts.budgetCategories().get(budget);
+        if (category != null && category.label().startsWith("헌금수입 / ")) {
+            var types = query("SELECT ID FROM OFFERING_TYPE WHERE NAME=? AND ACTIVE=TRUE",
+                    category.label().substring("헌금수입 / ".length()));
+            if (types.size() == 1)
+                return number(types.getFirst().get("ID"));
+        }
+        return null;
     }
 
     public long automaticCounterpart(long budget, String kind, Long offering) {
@@ -341,13 +352,16 @@ public class FinanceEngine {
             a.put("BALANCE", n.toString());
         }
         List<Map<String, Object>> movements = query(
-                "SELECT E.ENTRY_DATE,A.TYPE,A.NAME,A.CODE,L.DEBIT,L.CREDIT FROM ACCT_LINE L JOIN ACCT_ENTRY E ON E.ID=L.ENTRY_ID JOIN ACCT_ACCOUNT A ON A.ID=L.ACCOUNT_ID WHERE E.ENTRY_DATE BETWEEN ? AND ? ORDER BY E.ENTRY_DATE",
+                "SELECT E.ENTRY_DATE,A.TYPE,A.NAME,A.CODE,L.DEBIT,L.CREDIT,R.BUDGET_ID FROM ACCT_LINE L JOIN ACCT_ENTRY E ON E.ID=L.ENTRY_ID JOIN ACCT_ACCOUNT A ON A.ID=L.ACCOUNT_ID LEFT JOIN FINANCIAL_RECORD R ON R.ID=E.SOURCE_RECORD_ID WHERE E.ENTRY_DATE BETWEEN ? AND ? ORDER BY E.ENTRY_DATE",
                 from, to);
         TreeMap<String, BigInteger[]> months = new TreeMap<>();
         for (YearMonth m = YearMonth.from(from); !m.isAfter(YearMonth.from(to)); m = m.plusMonths(1))
             months.put(m.toString(), new BigInteger[] { BigInteger.ZERO, BigInteger.ZERO });
         BigInteger income = BigInteger.ZERO, expense = BigInteger.ZERO;
         Map<String, BigInteger> categories = new TreeMap<>();
+        var budgetCategories = ledgerCharts.budgetCategories();
+        Map<ChartCategory, BigInteger> chartTotals = new LinkedHashMap<>();
+        Map<String, Map<String, BigInteger>> chartMonths = new HashMap<>();
         for (Map<String, Object> m : movements) {
             String type = m.get("TYPE").toString(), month = m.get("ENTRY_DATE").toString().substring(0, 7);
             BigInteger n = new BigInteger(m.get("DEBIT").toString())
@@ -362,6 +376,12 @@ public class FinanceEngine {
             } else
                 continue;
             categories.merge(type + ":" + m.get("NAME"), n, BigInteger::add);
+            ChartCategory category = m.get("BUDGET_ID") == null
+                    ? ChartCategory.path(type, List.of(m.get("NAME").toString()))
+                    : budgetCategories.getOrDefault(number(m.get("BUDGET_ID")),
+                            ChartCategory.path(type, List.of(m.get("NAME").toString())));
+            chartTotals.merge(category, n, BigInteger::add);
+            chartMonths.computeIfAbsent(month, _ -> new HashMap<>()).merge(category.key(), n, BigInteger::add);
         }
         Map<String, String> monthlyOfferings = new HashMap<>();
         for (Map<String, Object> gift : query(
@@ -370,9 +390,22 @@ public class FinanceEngine {
             monthlyOfferings.put(gift.get("LABEL").toString(), gift.get("AMOUNT").toString());
         List<Map<String, String>> monthly = new ArrayList<>();
         for (Map.Entry<String, BigInteger[]> m : months.entrySet())
-            monthly.add(Map.of("label", m.getKey(), "income", m.getValue()[0].toString(), "expense",
+            monthly.add(new LinkedHashMap<>(Map.of("label", m.getKey(), "income", m.getValue()[0].toString(), "expense",
                     m.getValue()[1].toString(), "surplus", m.getValue()[0].subtract(m.getValue()[1]).toString(),
-                    "offerings", monthlyOfferings.getOrDefault(m.getKey(), "0")));
+                    "offerings", monthlyOfferings.getOrDefault(m.getKey(), "0"))));
+        for (var row : monthly)
+            chartMonths.getOrDefault(row.get("label"), Map.of()).forEach((k, v) -> row.put(k, v.toString()));
+        Map<ChartCategory, BigInteger> offeringTotals = new LinkedHashMap<>();
+        for (var gift : query(
+                "SELECT FORMATDATETIME(R.DATE,'yyyy-MM') LABEL,T.NAME,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.CANCELLED=FALSE AND K.STATUS='POSTED' AND R.DATE BETWEEN ? AND ? GROUP BY FORMATDATETIME(R.DATE,'yyyy-MM'),T.NAME",
+                from, to)) {
+            var c = ChartCategory.offering(gift.get("NAME").toString());
+            BigInteger amount = new BigInteger(gift.get("AMOUNT").toString());
+            offeringTotals.merge(c, amount, BigInteger::add);
+            for (var row : monthly)
+                if (row.get("label").equals(gift.get("LABEL")))
+                    row.put("gift_" + c.key(), amount.toString());
+        }
         long review = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM FINANCIAL_RECORD R LEFT JOIN ACCT_LINK K ON K.RECORD_ID=R.ID WHERE R.CANCELLED=FALSE AND R.DATE<=? AND (K.STATUS IS NULL OR K.STATUS='REVIEW')",
                 Long.class, to);
@@ -395,6 +428,15 @@ public class FinanceEngine {
         out.put("difference", asset.subtract(liability).subtract(equity).subtract(result).toString());
         out.put("accounts", all);
         out.put("monthly", monthly);
+        chartTotals.forEach((c, n) -> out.put(c.key(), n.toString()));
+        out.put("chartCategories", chartTotals.entrySet().stream()
+                .map(e -> LedgerChartService.descriptor(e.getKey(), e.getValue().toString())).toList());
+        out.put("offeringCategories", offeringTotals.entrySet().stream().map(e -> {
+            var d = new HashMap<>(LedgerChartService.descriptor(e.getKey(), e.getValue().toString()));
+            d.put("key", "gift_" + e.getKey().key());
+            return d;
+        }).toList());
+        out.put("pledges", pledges.summary(from, to).publicSummary());
         out.put("categories", categories.entrySet().stream()
                 .map(e -> Map.of("label", e.getKey(), "amount", e.getValue().toString())).toList());
         out.put("reviewCount", review);
@@ -408,6 +450,10 @@ public class FinanceEngine {
                 "SELECT R.ID,R.DATE,R.AMOUNT,T.ID TYPE_ID,T.NAME TYPE_NAME,A.CONTACT_ID,C.NAME CONTACT_NAME,A.AMOUNT SHARE FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID LEFT JOIN OFFERING_ALLOCATION A ON A.RECORD_ID=R.ID LEFT JOIN CONTACT C ON C.ID=A.CONTACT_ID WHERE R.CANCELLED=FALSE AND R.DATE BETWEEN ? AND ? ORDER BY R.DATE,R.ID",
                 from, to);
         for (Map<String, Object> r : rows) {
+            var c = ChartCategory.offering(r.get("TYPE_NAME").toString());
+            r.put("CHART_KEY", c.key());
+            r.put("CHART_COLOR", c.color());
+            r.put("CHART_LABEL", c.label());
             r.put("AMOUNT", String.valueOf(r.get("AMOUNT")));
             if (r.get("SHARE") != null)
                 r.put("SHARE", String.valueOf(r.get("SHARE")));
@@ -421,6 +467,7 @@ public class FinanceEngine {
         for (String k : List.of("from", "to", "assets", "liabilities", "netAssets", "income", "expense", "surplus",
                 "difference", "monthly", "reviewCount", "cashBalance", "offeringsTotal"))
             out.put(k, internal.get(k));
+        LedgerChartService.publicCharts(internal, out);
         List<Map<String, Object>> totals = query(
                 "SELECT T.NAME,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.CANCELLED=FALSE AND R.DATE BETWEEN ? AND ? GROUP BY T.NAME",
                 from, to);
@@ -467,6 +514,13 @@ public class FinanceEngine {
                 "SELECT E.*,EXISTS(SELECT 1 FROM ACCT_ENTRY R WHERE R.REVERSES_ID=E.ID) REVERSED FROM ACCT_ENTRY E ORDER BY E.ENTRY_DATE DESC,E.ID DESC"));
         out.put("lines", query(
                 "SELECT L.*,A.NAME ACCOUNT_NAME,E.ENTRY_DATE,E.MEMO,E.REVERSES_ID FROM ACCT_LINE L JOIN ACCT_ACCOUNT A ON A.ID=L.ACCOUNT_ID JOIN ACCT_ENTRY E ON E.ID=L.ENTRY_ID ORDER BY E.ID DESC,L.ID"));
+        var chartBudgets = ledgerCharts.budgetCategories();
+        for (var r : (List<Map<String, Object>>) out.get("records")) {
+            var c = chartBudgets.get(number(r.get("BUDGET_ID")));
+            if (c != null)
+                r.put("CHART_KEY", c.key());
+        }
+        out.put("pledgeCommitments", pledges.commitments());
         out.put("sharing", query("SELECT KEY_NAME,VALUE_TEXT FROM FINANCE_PREFERENCE"));
         return out;
     }

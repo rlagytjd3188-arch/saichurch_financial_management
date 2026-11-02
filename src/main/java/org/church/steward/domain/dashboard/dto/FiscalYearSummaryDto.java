@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FiscalYearSummaryDto {
+    private org.church.steward.finance.PledgeService.Summary pledges;
     private long totalIncome;
     private long totalExpense;
     private long openingBalance;

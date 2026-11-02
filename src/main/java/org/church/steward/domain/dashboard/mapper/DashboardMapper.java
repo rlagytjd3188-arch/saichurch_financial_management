@@ -32,6 +32,8 @@ public class DashboardMapper {
         return BudgetProgressDto.builder()
                 .budgetName(entity.getName())
                 .type(entity.getType())
+                .chartCategory(org.church.steward.finance.ChartCategory.budget(entity,
+                        entity.getType() == null ? "INCOME" : entity.getType().name()))
                 .budgetedAmount(budgetedAmount)
                 .actualAmount(actualAmount)
                 .progressRate(progressRate)

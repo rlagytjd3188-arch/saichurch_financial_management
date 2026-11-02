@@ -54,6 +54,9 @@ class DashboardServiceImplTest {
     @Mock
     private org.church.steward.finance.AccountBalanceService accountBalanceService;
 
+    @Mock
+    private org.church.steward.finance.PledgeService pledgeService;
+
     @InjectMocks
     private DashboardServiceImpl dashboardService;
 

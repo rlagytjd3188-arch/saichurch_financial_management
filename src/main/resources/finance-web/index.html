@@ -497,6 +497,7 @@
       publicBase = location.pathname.replace(/\/$/, "");
     let readOnly = false,
       data = {},
+      pledgeStats = {},
       report = {},
       gifts = [],
       timeline = [],
@@ -701,6 +702,7 @@
         $("login").hidden = true;
         $("app").hidden = false;
         $("logout").hidden = publicMode;
+        pledgeStats = !publicMode && !readOnly ? await api("/api/pledges"+period()) : {};
         render();
       } catch (e) {
         message(e);
@@ -842,343 +844,96 @@
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([label, n]) => ({ label, value: String(n) }));
     }
-    function chart(
-      title,
-      rows,
-      keys = [["value", "금액"]],
-      onClick = null,
-      initial = "bar",
-    ) {
-      const stock = keys.some(([k]) =>
-        ["assets", "liabilities", "netAssets"].includes(k),
-      );
-      if (rows.length && rows.every((r) => /^\d{4}-\d{2}$/.test(r.label))) {
-        const groups = new Map();
+    const chartPalette = ["#2878B5", "#CF693F", "#269B83", "#8B5CB8", "#CE8A20", "#627D98"];
+    function flowChart(title, source, catalog, onClick, initial = "bar", pledges = null, extras = []) {
+      const cs = catalog || [];
+      const keys = cs.length ? cs.map(c => [c.key, c.label, c.color, c.type]) : [["income", "수입", chartPalette[0], "INCOME"], ["expense", "지출", chartPalette[1], "EXPENSE"]];
+      let rows = source.map(r => ({...r}));
+      if (pledges?.target > 0) {
+        for (const r of rows) { const p = pledges.monthly.find(m => m.label === r.label); if (p) r.pledgeTarget = String(p.target); }
+        keys.push(["pledgeTarget", "약정 목표(100%)", "#627D98", "LINE"]);
+      }
+      keys.push(...extras);
+      return chart(title, rows, keys, onClick, initial, {classified: true});
+    }
+    function offeringChart(title, source, catalog, onClick, initial = "line") {
+      const keys = (catalog || []).map(c => [c.key, c.label, c.color, "GIFT"]);
+      return chart(title, source, keys.length ? keys : [["offerings", "헌금"]], onClick, initial, {classified: true});
+    }
+    function giftChart(title, gifts, label, onClick, initial = "bar") {
+      const catalog = new Map(), grouped = new Map();
+      for (const g of gifts) {
+        const key = g.CHART_KEY;
+        catalog.set(key, [key, g.CHART_LABEL || g.TYPE_NAME, g.CHART_COLOR, "GIFT"]);
+        const text = label(g), row = grouped.get(text) || {label: text};
+        row[key] = String(BigInt(row[key] || 0) + giftAmount(g)); grouped.set(text, row);
+      }
+      return chart(title, [...grouped.values()].sort((a,b) => a.label.localeCompare(b.label)), [...catalog.values()], onClick, initial, {classified: true});
+    }
+    function chart(title, rows, keys = [["value", "금액"]], onClick = null, initial = "bar", config = {}) {
+      keys = keys.map(([k,n,color,type],i) => [k,n,color || chartPalette[i % chartPalette.length],type || k]);
+      const stock = keys.some(([k]) => ["assets","liabilities","netAssets"].includes(k));
+      if (rows.length && rows.every(r => /^\d{4}-\d{2}$/.test(r.label))) {
+        const grouped = new Map();
         for (const r of rows) {
-          const label =
-            $("grain").value === "year"
-              ? r.label.slice(0, 4)
-              : $("grain").value === "quarter"
-                ? r.label.slice(0, 4) + "-Q" + Math.ceil(+r.label.slice(5) / 3)
-                : r.label;
-          if (!groups.has(label)) groups.set(label, { label });
-          const target = groups.get(label);
-          for (const [k] of keys)
-            target[k] = stock
-              ? String(r[k] || 0)
-              : String(BigInt(target[k] || 0) + BigInt(r[k] || 0));
+          const label = $("grain").value === "year" ? r.label.slice(0,4) : $("grain").value === "quarter" ? r.label.slice(0,4)+"-Q"+Math.ceil(+r.label.slice(5)/3) : r.label;
+          const row = grouped.get(label) || {label};
+          for (const k of config.percent ? ["target","actual"] : keys.map(k=>k[0])) row[k] = stock ? String(r[k] || 0) : String(BigInt(row[k] || 0)+BigInt(r[k] || 0));
+          grouped.set(label,row);
         }
-        rows = [...groups.values()];
+        rows = [...grouped.values()];
         if ($("cumulative").checked && !stock) {
           const totals = {};
-          rows = rows.map((r) => {
-            const n = { ...r };
-            for (const [k] of keys) {
-              totals[k] = (totals[k] || 0n) + BigInt(r[k] || 0);
-              n[k] = String(totals[k]);
-            }
-            return n;
-          });
+          rows = rows.map(r => { const row={...r}; for(const k of config.percent ? ["target","actual"] : keys.map(k=>k[0])) {totals[k]=(totals[k] || 0n)+BigInt(r[k] || 0);row[k]=String(totals[k]);} return row; });
         }
+        if(config.percent) rows=rows.map(r=>({...r, full: BigInt(r.target)>0n?"10000":null, rate:BigInt(r.target)>0n?String(BigInt(r.actual)*10000n/BigInt(r.target)):null}));
       }
-      const id = "chart-" + ++chartId;
-      charts.set(id, { rows, keys, onClick, title });
-      return (
-        '<section class="card" id="' +
-        id +
-        '"><h2>' +
-        esc(title) +
-        '</h2><div class="actions no-print"><select data-chart-kind="' +
-        id +
-        '">' +
-        [
-          ["bar", "막대"],
-          ["line", "꺾은선"],
-          ["mixed", "막대 + 꺾은선"],
-          ["stack", "누적 막대"],
-          ["pie", "원형"],
-          ["donut", "도넛"],
-        ]
-          .map(
-            ([v, n]) =>
-              "<option " +
-              (v === initial ? "selected" : "") +
-              ' value="' +
-              v +
-              '">' +
-              n +
-              "</option>",
-          )
-          .join("") +
-        '</select><select data-chart-view="' +
-        id +
-        '"><option value="both">표 + 그래프</option><option value="only-table">표만</option><option value="only-chart">그래프만</option></select><button data-save-chart="' +
-        id +
-        '">이미지 저장</button><label><input type="checkbox" data-values="' +
-        id +
-        '">값 표시</label></div><div class="legend">' +
-        keys
-          .map(
-            ([k, n], i) =>
-              '<label><input type="checkbox" data-series="' +
-              id +
-              '" value="' +
-              k +
-              '" checked><span style="color:' +
-              ["#2596cc", "#d58e67", "#61a58c", "#a58bc4"][i % 4] +
-              '">●</span>' +
-              esc(n) +
-              "</label>",
-          )
-          .join("") +
-        '</div><p class="muted chart-note" hidden></p><div class="chart"></div><div class="chart-table">' +
-        table(
-          ["항목", ...keys.map((x) => x[1])],
-          rows.map((r, i) => [
-            '<button class="text" data-point="' +
-              i +
-              '" data-parent="' +
-              id +
-              '">' +
-              esc(r.label) +
-              "</button>",
-            ...keys.map(([k]) => M(r[k] || 0)),
-          ]),
-        ) +
-        "</div></section>"
-      );
+      const id="chart-"+ ++chartId;
+      charts.set(id,{rows,keys,onClick,title,config});
+      const format=(v)=>config.percent ? v==null?"약정 없음":(Number(v)/100).toFixed(1)+"%" : M(v || 0);
+      const rowLegend=rows.filter(r=>r.color).map(r=>'<span style="color:'+r.color+'">■</span> '+esc(r.label)).join(" · ");
+      return '<section class="card" id="'+id+'"><h2>'+esc(title)+'</h2><div class="actions no-print"><select data-chart-kind="'+id+'">'+[["bar","막대"],["line","꺾은선"],["mixed","막대 + 꺾은선"],["stack","누적 막대"],["pie","원형"],["donut","도넛"]].map(([v,n])=>'<option value="'+v+'" '+(v===initial?'selected':'')+'>'+n+'</option>').join("")+'</select><select data-chart-view="'+id+'"><option value="both">표 + 그래프</option><option value="only-table">표만</option><option value="only-chart">그래프만</option></select><button data-save-chart="'+id+'">이미지 저장</button><label><input type="checkbox" data-values="'+id+'">값 표시</label></div><div class="legend">'+keys.map(([k,n,color])=>'<label><input type="checkbox" data-series="'+id+'" value="'+k+'" checked><span style="color:'+color+'">●</span>'+esc(n)+'</label>').join("")+rowLegend+'</div><p class="muted chart-note" hidden></p><div class="chart"></div><div class="chart-table">'+table(["항목",...keys.map(k=>k[1])],rows.map((r,i)=>['<button class="text" data-point="'+i+'" data-parent="'+id+'">'+esc(r.label)+'</button>',...keys.map(([k])=>format(r[k]))]))+'</div></section>';
     }
     function draw(id) {
-      const c = charts.get(id),
-        box = $(id);
-      if (!box) return;
-      const kind = box.querySelector("[data-chart-kind]").value,
-        keys = c.keys.filter(
-          ([k]) =>
-            box.querySelector('[data-series][value="' + k + '"]').checked,
-        ),
-        rows = c.rows;
-      if (!rows.length || !keys.length) {
-        box.querySelector(".chart").innerHTML =
-          '<p class="muted">표시할 자료가 없습니다.</p>';
-        return;
+      const c=charts.get(id),box=$(id);if(!box)return;
+      const kind=box.querySelector("[data-chart-kind]").value, keys=c.keys.filter(([k])=>box.querySelector('[data-series][value="'+k+'"]').checked),rows=c.rows;
+      if(!rows.length || !keys.length){box.querySelector('.chart').innerHTML='<p class="muted">표시할 자료가 없습니다.</p>';return;}
+      const percent=c.config.percent,format=v=>percent?(Number(v)/100).toFixed(1)+"%":M(v),n=(r,k)=>BigInt(r[k] || 0);
+      const legend=rows.some(r=>r.color)?rows.map(r=>[r.label,r.color]):keys.map(k=>[k[1],k[2]]);
+      const W=900,H=300+Math.ceil(legend.length/4)*20,left=70,negative=rows.some(r=>keys.some(([k])=>n(r,k)<0n)),bottom=negative?150:250;
+      const groupOf=k=>c.config.classified?k[3]:kind==='stack'?'all':k[0];
+      const isLine=(k,i)=>kind==='line' || k[3]==='LINE' || kind==='mixed' && (!c.config.classified && i===keys.length-1 || k[0]==='surplus');
+      const groups=[...new Set(keys.filter((k,i)=>!isLine(k,i)).map(groupOf))];
+      let max=percent?10000n:1n;
+      for(const r of rows){for(const [k]of keys){const v=n(r,k);if((v<0n?-v:v)>max)max=v<0n?-v:v;}
+        for(const group of groups){for(const sign of [1n,-1n]){const total=keys.filter((k,i)=>!isLine(k,i)&&groupOf(k)===group).reduce((a,[k])=>a+(n(r,k)*sign>0n?n(r,k)*sign:0n),0n);if(total>max)max=total;}}
       }
-      const W = 900,
-        H = 300,
-        left = 70,
-        bottom = rows.some((r) => keys.some(([k]) => BigInt(r[k] || 0) < 0n))
-          ? 150
-          : 250,
-        palette = [
-          "#2596cc",
-          "#d58e67",
-          "#61a58c",
-          "#a58bc4",
-          "#dbad4d",
-          "#5d819b",
-        ];
-      let svg =
-          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' +
-          W +
-          " " +
-          H +
-          '" role="img" aria-label="' +
-          esc(c.title) +
-          '">',
-        max = 1n;
-      rows.forEach((r) => {
-        let sum = 0n;
-        keys.forEach(([k]) => {
-          const n = BigInt(r[k] || 0);
-          if ((n < 0n ? -n : n) > max) max = n < 0n ? -n : n;
-          sum += n;
-        });
-        if (kind === "stack") {
-          const pos = keys.reduce(
-              (n, [k]) => n + (BigInt(r[k] || 0) > 0n ? BigInt(r[k]) : 0n),
-              0n,
-            ),
-            neg = keys.reduce(
-              (n, [k]) => n + (BigInt(r[k] || 0) < 0n ? -BigInt(r[k]) : 0n),
-              0n,
-            );
-          if (pos > max) max = pos;
-          if (neg > max) max = neg;
-        }
-      });
-      const height = (n) =>
-          Number((BigInt(n || 0) * (bottom === 150 ? 100n : 200n)) / max),
-        showValues = box.querySelector("[data-values]").checked;
-      const note = box.querySelector(".chart-note");
-      note.hidden = !(kind === "pie" || kind === "donut");
-      note.textContent =
-        "선택한 첫 계열 (" +
-        keys[0][1] +
-        ")의 구성비입니다. 표에서 전체 계열을 확인할 수 있습니다.";
-      if (kind === "pie" || kind === "donut") {
-        const total = rows.reduce((s, r) => s + BigInt(r[keys[0][0]] || 0), 0n);
-        if (total <= 0n || rows.some((r) => BigInt(r[keys[0][0]] || 0) < 0n)) {
-          box.querySelector(".chart").innerHTML =
-            '<p class="muted">0 또는 음수 구성비는 원형 대신 막대·꺾은선으로 확인하세요.</p>';
-          return;
-        }
-        let angle = 0;
-        rows.forEach((r, i) => {
-          const fraction =
-              Number((BigInt(r[keys[0][0]] || 0) * 1000000n) / total) / 1000000,
-            a = angle,
-            b = angle + fraction * Math.PI * 2;
-          angle = b;
-          const x = (a) => 450 + 110 * Math.cos(a - Math.PI / 2),
-            y = (a) => 140 + 110 * Math.sin(a - Math.PI / 2);
-          if (fraction >= 0.999999)
-            svg +=
-              '<circle cx="450" cy="140" r="110" fill="' +
-              palette[i % palette.length] +
-              '" data-point="' +
-              i +
-              '"><title>' +
-              esc(r.label) +
-              " " +
-              M(r[keys[0][0]]) +
-              "</title></circle>";
-          else
-            svg +=
-              '<path d="M450,140 L' +
-              x(a) +
-              "," +
-              y(a) +
-              " A110,110 0 " +
-              (fraction > 0.5 ? 1 : 0) +
-              ",1 " +
-              x(b) +
-              "," +
-              y(b) +
-              ' Z" fill="' +
-              palette[i % palette.length] +
-              '" data-point="' +
-              i +
-              '"><title>' +
-              esc(r.label) +
-              " " +
-              M(r[keys[0][0]]) +
-              "</title></path>";
-          if (showValues && fraction > 0) {
-            const mid = (a + b) / 2;
-            svg +=
-              '<text x="' +
-              (450 + 125 * Math.cos(mid - Math.PI / 2)) +
-              '" y="' +
-              (140 + 125 * Math.sin(mid - Math.PI / 2)) +
-              '" font-size="10" text-anchor="middle">' +
-              esc(r.label) +
-              " " +
-              M(r[keys[0][0]]) +
-              "</text>";
-          }
-        });
-        if (kind === "donut")
-          svg +=
-            '<circle cx="450" cy="140" r="65" fill="white"/><text x="450" y="145" text-anchor="middle">' +
-            money(total) +
-            "</text>";
-      } else {
-        svg +=
-          '<path d="M' +
-          left +
-          ",20 V" +
-          bottom +
-          ' H880" stroke="#cbd8e0" fill="none"/>';
-        const step = 800 / Math.max(rows.length, 1);
-        keys.forEach(([key, name], ki) => {
-          const line =
-            kind === "line" || (kind === "mixed" && ki === keys.length - 1);
-          let points = [];
-          rows.forEach((r, i) => {
-            const v = BigInt(r[key] || 0),
-              h = height(v),
-              x = left + step * (i + 0.5),
-              y = bottom - h;
-            const title = esc(r.label + " · " + name + " " + M(v));
-            if (line) {
-              points.push(x + "," + y);
-              svg +=
-                '<circle cx="' +
-                x +
-                '" cy="' +
-                y +
-                '" r="5" fill="' +
-                palette[ki % 6] +
-                '" data-point="' +
-                i +
-                '"><title>' +
-                title +
-                "</title></circle>";
-            } else {
-              const prev =
-                  kind === "stack"
-                    ? keys
-                        .slice(0, ki)
-                        .reduce(
-                          (s, [k]) =>
-                            s +
-                            (BigInt(r[k] || 0) < 0n === v < 0n
-                              ? BigInt(r[k] || 0)
-                              : 0n),
-                          0n,
-                        )
-                    : 0n,
-                bw = Math.max(
-                  1,
-                  Math.min(45, step / (kind === "stack" ? 1 : keys.length + 1)),
-                );
-              svg +=
-                '<rect x="' +
-                (kind === "stack" ? x - bw / 2 : x - step * 0.3 + ki * bw) +
-                '" y="' +
-                (bottom - height(prev) - Math.max(h, 0)) +
-                '" width="' +
-                bw +
-                '" height="' +
-                Math.abs(h) +
-                '" fill="' +
-                palette[ki % 6] +
-                '" data-point="' +
-                i +
-                '" tabindex="0"><title>' +
-                title +
-                "</title></rect>";
-            }
-            if (showValues)
-              svg +=
-                '<text x="' +
-                x +
-                '" y="' +
-                (y - 8) +
-                '" font-size="9" text-anchor="middle">' +
-                money(v) +
-                "</text>";
-            if (ki === 0 && i % Math.max(1, Math.ceil(rows.length / 12)) === 0)
-              svg +=
-                '<text x="' +
-                x +
-                '" y="275" font-size="10" text-anchor="middle">' +
-                esc(r.label) +
-                "</text>";
-          });
-          if (line)
-            svg +=
-              '<polyline points="' +
-              points.join(" ") +
-              '" fill="none" stroke="' +
-              palette[ki % 6] +
-              '" stroke-width="2"/>';
+      const height=v=>Number(BigInt(v)*(negative?100n:200n)/max);
+      let svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(c.title)+'">';
+      const note=box.querySelector('.chart-note');note.hidden=!(kind==='pie'||kind==='donut');note.textContent='선택한 계열의 구성비입니다. 분류 색상은 범례와 같습니다.';
+      if(kind==='pie'||kind==='donut'){
+        const values=rows.map(r=>keys.reduce((a,[k])=>a+n(r,k),0n)),total=values.reduce((a,b)=>a+b,0n);
+        if(total<=0n||values.some(v=>v<0n)){box.querySelector('.chart').innerHTML='<p class="muted">0 또는 음수 구성비는 막대·꺾은선으로 확인하세요.</p>';return;}
+        let angle=0;rows.forEach((r,i)=>{const fraction=Number(values[i]*1000000n/total)/1000000,a=angle,b=angle+fraction*Math.PI*2;angle=b;
+          const x=t=>450+110*Math.cos(t-Math.PI/2),y=t=>140+110*Math.sin(t-Math.PI/2),color=r.color||chartPalette[i%chartPalette.length],tip=esc(r.label+' '+format(values[i]));
+          svg+=fraction>=.999999?'<circle cx="450" cy="140" r="110" fill="'+color+'" data-point="'+i+'"><title>'+tip+'</title></circle>':'<path d="M450,140 L'+x(a)+','+y(a)+' A110,110 0 '+(fraction>.5?1:0)+',1 '+x(b)+','+y(b)+' Z" fill="'+color+'" data-point="'+i+'"><title>'+tip+'</title></path>';
+        });if(kind==='donut')svg+='<circle cx="450" cy="140" r="65" fill="white"/><text x="450" y="145" text-anchor="middle">'+format(total)+'</text>';
+      }else{
+        for(let tick=0;tick<=4;tick++){const value=max*BigInt(tick)/4n,y=bottom-height(value);svg+='<path d="M'+left+','+y+' H880" stroke="#d8e2eb"/><text x="65" y="'+(y+4)+'" font-size="11" text-anchor="end">'+esc(percent?(Number(value)/100).toFixed(0)+'%':money(value))+'</text>';}
+        const step=800/rows.length;
+        keys.forEach((key,ki)=>{const [k,name,color]=key,line=isLine(key,ki);let points=[];
+          const flush=()=>{if(points.length===1 && ['full','pledgeTarget','target'].includes(k)){const y=points[0].split(',')[1];points=[left+','+y,'880,'+y];}if(points.length)svg+='<polyline points="'+points.join(' ')+'" fill="none" stroke="'+color+'" stroke-width="2" '+(k==='full'||k==='pledgeTarget'||k==='target'?'stroke-dasharray="7 4"':'')+'/>';points=[];};
+          rows.forEach((r,i)=>{if(percent&&r[k]==null){flush();return;}const v=n(r,k),h=height(v),x=left+step*(i+.5),tip=esc(r.label+' · '+name+' '+format(v));let y=bottom-h;
+            if(line){points.push(x+','+y);svg+='<circle cx="'+x+'" cy="'+y+'" r="4" fill="'+color+'" data-series-key="'+k+'" data-point="'+i+'"><title>'+tip+'</title></circle>';}
+            else{const group=groupOf(key),gi=groups.indexOf(group),previous=keys.slice(0,ki).filter((p,pi)=>!isLine(p,pi)&&groupOf(p)===group).reduce((a,[p])=>a+(n(r,p)<0n===v<0n?n(r,p):0n),0n),bw=Math.max(1,Math.min(45,step*.8/Math.max(groups.length,1))),bx=x-bw*groups.length/2+gi*bw;
+              y=bottom-height(previous)-Math.max(h,0);svg+='<rect x="'+bx+'" y="'+y+'" width="'+bw*.9+'" height="'+Math.abs(h)+'" fill="'+(r.color||color)+'" data-series-key="'+k+'" data-point="'+i+'" tabindex="0"><title>'+tip+'</title></rect>';}
+            if(box.querySelector('[data-values]').checked)svg+='<text x="'+x+'" y="'+(y-7)+'" font-size="9" text-anchor="middle">'+esc(format(v))+'</text>';
+            if(ki===0&&i%Math.max(1,Math.ceil(rows.length/12))===0)svg+='<text x="'+x+'" y="275" font-size="10" text-anchor="middle">'+esc(r.label)+'</text>';
+          });flush();
         });
       }
-      box.querySelector(".chart").innerHTML = svg + "</svg>";
-      box
-        .querySelectorAll("svg [data-point]")
-        .forEach((n) => (n.onclick = () => drill(id, +n.dataset.point)));
+      legend.forEach(([name,color],i)=>{const x=15+(i%4)*220,y=300+Math.floor(i/4)*20;svg+='<rect x="'+x+'" y="'+(y-9)+'" width="8" height="8" fill="'+color+'"/><text x="'+(x+12)+'" y="'+y+'" font-size="10">'+esc(name)+'</text>';});
+      box.querySelector('.chart').innerHTML=svg+'</svg>';box.querySelectorAll('svg [data-point]').forEach(n=>n.onclick=()=>drill(id,+n.dataset.point));
     }
     function drill(id, index) {
       const c = charts.get(id);
@@ -1196,6 +951,35 @@
             ],
           ),
         );
+    }
+    function categoryChart(title,type=null,initial="bar") {
+      return chart(title,(report.chartCategories || []).filter(c=>(!type || c.type===type) && BigInt(c.amount)!==0n).map(c=>({label:c.label,value:c.amount,color:c.color,key:c.key})),[["value","금액"]],r=>{
+        modal(r.label,table(["일자","구분","내역","금액"],(data.records || []).filter(x=>x.CHART_KEY===r.key&&x.STATUS==='POSTED'&&x.DATE >=$("from").value&&x.DATE<=$("to").value).map(x=>[esc(x.DATE),x.TYPE==='INCOME'?'수입':'지출',esc(x.DESCRIPTION),M(x.AMOUNT)])));
+      },initial);
+    }
+    const percentage=(actual,target)=>BigInt(target || 0)===0n?"약정 없음":(Number(BigInt(actual || 0)*10000n/BigInt(target))/100).toFixed(1)+"%";
+    function pledgePanels(p) {
+      if(!p)return '';
+      if(BigInt(p.target || 0)===0n && BigInt(p.actual || 0)===0n)return '<div class="notice">월 약정액은 헌금자 → 월 약정 설정에서 등록하세요.</div>';
+      const rows=(p.monthly || []).map(m=>({...m,target:String(m.target),actual:String(m.actual)}));
+      return '<section class="card"><h2>전체 약정헌금 달성 현황</h2><p>약정 100% 목표 <b>'+M(p.target)+'</b> · 실제 납부 <b>'+M(p.actual)+'</b> · 달성률 <b>'+percentage(p.actual,p.target)+'</b></p><p class="muted">'+esc(p.from)+' ~ '+esc(p.to)+' · 목표는 월 약정 전액, 납부액은 월초부터 기준일까지입니다. 미배분 '+M(p.unallocated || 0)+'은 전체에만 포함됩니다.</p></section>'+
+        chart('약정헌금 목표·납부액',rows,[["target","약정 목표(100%)","#627D98","LINE"],["actual","실제 약정헌금 납부","#8B5CB8","ACTUAL"]],null,"line")+
+        chart('약정헌금 달성률 · 목표 100%와 실제',rows,[["full","약정 목표 100%","#627D98","LINE"],["rate","실제 달성률","#8B5CB8","RATE"]],null,"line",{percent:true});
+    }
+    function pledgePerson(id) {return (pledgeStats.people || []).find(p=>p.id===id) || {};}
+    function monthlyPledge(id) {
+      const month=$("to").value.slice(0,7);
+      return (data.pledgeCommitments || []).filter(p=>p.CONTACT_ID===id && p.START_MONTH.slice(0,7)<=month && (!p.END_MONTH || p.END_MONTH.slice(0,7)>=month)).reduce((a,p)=>a+BigInt(p.MONTHLY_AMOUNT),0n);
+    }
+    function pledgePeople() {
+      return '<section class="card"><h2>개인별 약정헌금 달성 현황</h2>'+table(["헌금자","기간 약정(100%)","실제 납부","달성률","설정"],(pledgeStats.people || []).map(p=>[esc(p.name),M(p.target),M(p.actual),percentage(p.actual,p.target),'<button data-pledge-contact="'+p.id+'">월 약정 설정</button>']))+'</section>';
+    }
+    function pledgeForm(contact,p={}) {
+      const name=(data.contacts || []).find(c=>c.ID===contact)?.NAME || '';
+      const history=(data.pledgeCommitments || []).filter(x=>x.CONTACT_ID===contact);
+      form(esc(name)+' · 월 약정 설정','pledge',field('매월 약정액 (원)','amount',p.MONTHLY_AMOUNT || '', 'number')+field('시작월','start',p.START_MONTH?.slice(0,7) || $("from").value.slice(0,7),'month')+field('종료월 (계속 약정하면 비움)','end',p.END_MONTH?.slice(0,7) || '', 'month')+'<p class="full muted">월 약정액은 수입으로 기록되지 않습니다. 금액이 바뀌면 기존 종료월을 지정한 뒤 새 시작월로 추가하세요. 종료월도 약정에 포함됩니다.</p>',{contact,...(p.ID?{id:p.ID}:{})});
+      $("editForm [name=amount]").min='1';$("editForm [name=start]").required=true;$("editForm [name=end]").required=false;
+      $("editForm").insertAdjacentHTML('afterend','<h3>기존 약정 이력</h3>'+table(["시작월","종료월","월 약정액","수정"],history.map(x=>[esc(x.START_MONTH.slice(0,7)),esc(x.END_MONTH?.slice(0,7)||'계속'),M(x.MONTHLY_AMOUNT),'<button data-edit-pledge="'+x.ID+'">수정</button><button data-cancel-pledge="'+x.ID+'">입력 취소</button>'])));
     }
     function render() {
       chartId = 0;
@@ -1220,17 +1004,8 @@
         : "";
       if (["대시보드", "재무상태 보고서"].includes(page)) {
         h += cards();
-        h += chart(
-          "수입·비용 흐름",
-          report.monthly || [],
-          [
-            ["income", "수입"],
-            ["expense", "비용"],
-            ["surplus", "운영결과"],
-          ],
-          (r) => monthRecords(r.label),
-          "mixed",
-        );
+        h += flowChart("수입·비용 흐름", report.monthly || [], report.chartCategories, r=>monthRecords(r.label), "mixed", report.pledges, [["surplus","운영결과","#556C82","LINE"]]);
+        h += pledgePanels(report.pledges);
         if (
           !projected() &&
           !(page === "재무상태 보고서" && $("detail").value === "summary")
@@ -1246,96 +1021,17 @@
             null,
             "line",
           );
-          h += chart(
-            "수입·비용 구성",
-            (report.categories || []).map((r) => ({
-              label: r.label
-                .replace(/^INCOME:/, "수익 · ")
-                .replace(/^EXPENSE:/, "비용 · "),
-              value: r.amount,
-              source: r.label,
-            })),
-            [["value", "금액"]],
-            (r) => accountDrill(r.source),
-          );
+          h += categoryChart("수입·비용 구성");
           if (page === "대시보드") {
-            h += chart(
-              "최근 12개월 헌금",
-              recent.monthly || [],
-              [["offerings", "헌금"]],
-              (r) => {
-                setMonth(r.label);
-                page = "헌금 관리";
-                load();
-              },
-              "line",
-            );
-            h += chart(
-              "최근 12개월 수입·비용",
-              recent.monthly || [],
-              [
-                ["income", "수입"],
-                ["expense", "비용"],
-              ],
-              (r) => monthRecords(r.label),
-              "mixed",
-            );
+            h += offeringChart("최근 12개월 헌금", recent.monthly || [], recent.offeringCategories, r=>{setMonth(r.label);page="헌금 관리";load();}, "line");
+            h += flowChart("최근 12개월 수입·비용", recent.monthly || [], recent.chartCategories, r=>monthRecords(r.label), "mixed", recent.pledges);
           }
           if (page === "재무상태 보고서" && $("detail").value === "full") {
-            h += chart(
-              "헌금 추이",
-              report.monthly || [],
-              [["offerings", "헌금"]],
-              (r) => {
-                setMonth(r.label);
-                page = "헌금 관리";
-                load();
-              },
-              "line",
-            );
-            h += chart(
-              "수입 구성",
-              (report.categories || [])
-                .filter((r) => r.label.startsWith("INCOME:"))
-                .map((r) => ({
-                  label: r.label.slice(7),
-                  value: r.amount,
-                  source: r.label,
-                })),
-              [["value", "수입"]],
-              (r) => accountDrill(r.source),
-              "donut",
-            );
-            h += chart(
-              "지출 구성",
-              (report.categories || [])
-                .filter((r) => r.label.startsWith("EXPENSE:"))
-                .map((r) => ({
-                  label: r.label.slice(8),
-                  value: r.amount,
-                  source: r.label,
-                })),
-              [["value", "비용"]],
-              (r) => accountDrill(r.source),
-              "donut",
-            );
-            h += chart(
-              "기간 비교",
-              [
-                { label: "현재", ...report },
-                { label: "이전 비교 기간", ...comparison.previous },
-                { label: "전년 같은 기간", ...comparison.lastYear },
-              ],
-              [
-                ["income", "수입"],
-                ["expense", "비용"],
-                ["offeringsTotal", "헌금"],
-                ["assets", "자산"],
-                ["liabilities", "부채"],
-                ["netAssets", "순자산"],
-                ["surplus", "운영결과"],
-              ],
-            );
+            h += offeringChart("헌금 추이", report.monthly || [], report.offeringCategories, r=>{setMonth(r.label);page="헌금 관리";load();}, "line");
+            h += categoryChart("수입 구성", "INCOME", "donut");
+            h += categoryChart("지출 구성", "EXPENSE", "donut");
+            const catalog=[...new Map([report,comparison.previous,comparison.lastYear].flatMap(r=>r?.chartCategories || []).map(c=>[c.key,c])).values()];
+            h += flowChart("기간 비교", [{label:"현재",...report},{label:"이전 비교 기간",...comparison.previous},{label:"전년 같은 기간",...comparison.lastYear}],catalog,null,"bar");
             h +=
               '<section class="card"><h2>기간 비교</h2>' +
               table(
@@ -1387,6 +1083,7 @@
             (report.offerings || []).map((r) => ({
               label: r.label,
               value: r.amount,
+              color:(report.offeringCategories || []).find(c=>c.label.endsWith(' / '+r.label))?.color,
             })),
             [["value", "헌금"]],
             null,
@@ -1491,46 +1188,11 @@
         if (!gs.length)
           h +=
             '<div class="notice">현재 기간·헌금자·종류에 맞는 헌금이 없습니다. <button data-reset-gift-filters>헌금자·종류 전체 보기</button> <button data-review-offerings>미연결 수입 확인</button></div>';
-        h += chart(
-          "월별 헌금",
-          group(gs, (g) => g.DATE.slice(0, 7), giftAmount),
-          [["value", "헌금"]],
-          (r) => {
-            setMonth(r.label);
-            render();
-          },
-          "line",
-        );
-        h += chart(
-          "헌금 종류 구성",
-          group(gs, (g) => g.TYPE_NAME, giftAmount),
-          [["value", "헌금"]],
-          (r) => {
-            const type = data.types.find((t) => t.NAME === r.label);
-            $("giftType").value = type ? type.ID : "";
-            render();
-          },
-          "donut",
-        );
-        h += chart(
-          "개인별 헌금",
-          group(
-            gs,
-            (g) =>
-              g.CONTACT_ID
-                ? g.CONTACT_NAME + " (#" + g.CONTACT_ID + ")"
-                : "미배분 그룹 헌금",
-            giftAmount,
-          ),
-          [["value", "헌금"]],
-          (r) => {
-            const donor = (data.contacts || []).find((x) =>
-              r.label.endsWith("(#" + x.ID + ")"),
-            );
-            $("person").value = donor ? donor.ID : "unallocated";
-            render();
-          },
-        );
+        h += giftChart("월별 헌금",gs,g=>g.DATE.slice(0,7),r=>{setMonth(r.label);render();},"line");
+        h += chart("헌금 종류 구성",group(gs,g=>g.TYPE_NAME,giftAmount).map(r=>({...r,color:gs.find(g=>g.TYPE_NAME===r.label)?.CHART_COLOR})),[["value","헌금"]],r=>{$("giftType").value=data.types.find(t=>t.NAME===r.label)?.ID || "";render();},"donut");
+        h += giftChart("개인별 헌금",gs,g=>g.CONTACT_ID?g.CONTACT_NAME+" (#"+g.CONTACT_ID+")":"미배분 그룹 헌금",r=>{const donor=data.contacts.find(c=>r.label.endsWith("(#"+c.ID+")"));$("person").value=donor?donor.ID:"unallocated";render();});
+        h += pledgePanels(report.pledges);
+        h += pledgePeople();
         h +=
           '<section class="card"><h2>개인별 연간 헌금표</h2>' +
           annual(gs) +
@@ -1555,13 +1217,15 @@
         h +=
           '<section class="card"><div class="actions"><button data-new-contact>헌금자 추가</button><label>이름 검색<input id="contactSearch" placeholder="이름" oninput="filterContacts(this.value)"></label></div>' +
           table(
-            ["이름", "메모", "등록일", "상태", "관리"],
+            ["이름", "메모", "월 약정액", "기간 약정(100%)", "기간 납부", "달성률", "등록일", "상태", "관리"],
             (data.contacts || []).map((c) => [
               esc(c.NAME),
               esc(c.REMARKS),
+              M(monthlyPledge(c.ID)),
+              M(pledgePerson(c.ID).target || 0), M(pledgePerson(c.ID).actual || 0), percentage(pledgePerson(c.ID).actual,pledgePerson(c.ID).target),
               esc(c.CREATED_AT || ""),
               c.IS_HIDDEN ? "비활성" : "활성",
-              '<button data-contact="' + c.ID + '">수정·비활성화</button>',
+              '<button data-contact="' + c.ID + '">수정·비활성화</button><button data-pledge-contact="'+c.ID+'">월 약정 설정</button>',
             ]),
             'id="contactsTable"',
           ) +
@@ -2348,6 +2012,11 @@
         } else if (b.dataset.point) drill(b.dataset.parent, +b.dataset.point);
         else if (b.hasAttribute("data-new-record")) recordForm();
         else if (b.hasAttribute("data-new-gift")) recordForm(true);
+        else if (b.hasAttribute("data-cancel-pledge")) {
+          if(confirm("잘못 입력한 약정을 취소할까요? 실제 헌금 납부 내역은 유지됩니다.")){await api("/api/write",{operation:"cancelPledge",id:+b.dataset.cancelPledge});$("modal").close();await load();}
+        }
+        else if (b.hasAttribute("data-pledge-contact")) pledgeForm(+b.dataset.pledgeContact);
+        else if (b.hasAttribute("data-edit-pledge")) {const p=data.pledgeCommitments.find(p=>p.ID===+b.dataset.editPledge);pledgeForm(p.CONTACT_ID,p);}
         else if (b.hasAttribute("data-new-contact")) contactForm();
         else if (b.hasAttribute("data-new-account")) accountForm();
         else if (b.hasAttribute("data-new-type")) typeForm();

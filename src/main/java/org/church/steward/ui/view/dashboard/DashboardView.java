@@ -99,6 +99,9 @@ public class DashboardView extends JPanel implements MenuActivatable {
 
     private final MonthlyTrendChart monthlyTrendChart = new MonthlyTrendChart();
     private final BudgetProgressCard budgetProgressCard = new BudgetProgressCard();
+    private final PledgeProgressChart pledgeProgressChart = new PledgeProgressChart();
+    private final javax.swing.JTabbedPane progressTabs = new javax.swing.JTabbedPane();
+    private boolean progressTabInitialized;
 
     private final RecentTransactionTableModel transactionTableModel = new RecentTransactionTableModel();
 
@@ -209,7 +212,11 @@ public class DashboardView extends JPanel implements MenuActivatable {
         gbc.weightx = BUDGET_CARD_WEIGHT;
         gbc.insets = new Insets(0, 0, 0, 0);
         ignorePreferredSize(budgetProgressCard);
-        row.add(budgetProgressCard, gbc);
+        var tabs = progressTabs;
+        tabs.addTab("약정헌금 달성률", pledgeProgressChart);
+        tabs.addTab("예산 현황", budgetProgressCard);
+        ignorePreferredSize(tabs);
+        row.add(tabs, gbc);
 
         return row;
     }
@@ -218,6 +225,7 @@ public class DashboardView extends JPanel implements MenuActivatable {
         DashboardCard card = new DashboardCard(new BorderLayout(0, CARD_HEADER_GAP));
         ignorePreferredSize(card);
         card.add(createCardHeader("월별 수입·지출", MonthlyTrendChart.createLegend()), BorderLayout.NORTH);
+        card.setToolTipText("색상: 1차 분류(헌금수입은 2차) · 점선: 약정 목표(100%)");
         card.add(monthlyTrendChart, BorderLayout.CENTER);
         return card;
     }
@@ -354,6 +362,14 @@ public class DashboardView extends JPanel implements MenuActivatable {
             showFiscalYearBadge(fiscalYearName, startDate, endDate);
             updateSummary(data.summary(), data.progress());
             monthlyTrendChart.setData(data.trend());
+            monthlyTrendChart.setPledges(data.summary().getPledges());
+            pledgeProgressChart.setData(data.summary().getPledges());
+            if (!progressTabInitialized) {
+                progressTabs.setSelectedIndex(data.summary().getPledges() != null
+                        && (data.summary().getPledges().target() > 0 || data.summary().getPledges().actual() > 0) ? 0
+                                : 1);
+                progressTabInitialized = true;
+            }
             budgetProgressCard.setData(data.progress());
             transactionTableModel.setTransactions(data.transactions());
         }, err -> {

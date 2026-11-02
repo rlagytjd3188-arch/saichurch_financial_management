@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 public class BudgetProgressDto {
     private String budgetName;
     private BudgetType type;
+    private org.church.steward.finance.ChartCategory chartCategory;
     private long budgetedAmount;
     private long actualAmount;
     private double progressRate; // (actual / budgeted) * 100

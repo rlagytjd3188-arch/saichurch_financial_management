@@ -54,6 +54,7 @@ public class ReportServiceImpl implements ReportService {
     private final FiscalYearRepository fiscalYearRepository;
     private final DashboardService dashboardService;
     private final org.church.steward.finance.AccountBalanceService accountBalanceService;
+    private final org.church.steward.finance.PledgeService pledgeService;
     private final ActivityLogService activityLogService;
     private final ReportMapper reportMapper;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -83,6 +84,7 @@ public class ReportServiceImpl implements ReportService {
 
         return WeeklySettlementReportDto.builder()
                 .fiscalYearName(fiscalYear.getName())
+                .pledges(pledgeService.summary(endDate.withDayOfMonth(1), endDate))
                 .startDate(startDate)
                 .endDate(endDate)
                 .previousBalance(Math.addExact(
@@ -93,7 +95,7 @@ public class ReportServiceImpl implements ReportService {
                 .periodOpeningBalance(accountBalanceService.openingBalance(startDate, endDate))
                 .weekly(summarize(weeklyRecords))
                 .periodTrend(periodTrend(fiscalYearId, startDate, endDate, weeklyRecords, false))
-                .incomeStatus(toExecutionRows(incomeTree, incomeTree.getRoots(), records, FinancialRecordType.INCOME))
+                .incomeStatus(toExecutionRows(incomeTree, chartNodes(incomeTree), records, FinancialRecordType.INCOME))
                 .expenseStatus(
                         toExecutionRows(expenseTree, expenseTree.getRoots(), records, FinancialRecordType.EXPENSE))
                 .incomeRecords(groupByBudget(incomeTree, weeklyRecords, FinancialRecordType.INCOME))
@@ -178,6 +180,7 @@ public class ReportServiceImpl implements ReportService {
                         .orElse(null))
                 .previousYear(previousSummary)
                 .currentYear(summarize(records))
+                .pledges(pledgeService.summary(fiscalYear.getStartDate(), fiscalYear.getEndDate()))
                 .previousBalance(
                         Math.addExact(accountBalanceService.otherYearCarry(fiscalYearId, fiscalYear.getStartDate()),
                                 accountBalanceService.openingBalance(null, fiscalYear.getStartDate().minusDays(1))))
@@ -187,7 +190,7 @@ public class ReportServiceImpl implements ReportService {
                 .monthlyTrend(dashboardService.getMonthlyTrend(fiscalYearId))
                 .periodTrend(
                         periodTrend(fiscalYearId, fiscalYear.getStartDate(), fiscalYear.getEndDate(), records, true))
-                .incomeStatus(toExecutionRows(incomeTree, incomeTree.getRoots(), records, FinancialRecordType.INCOME))
+                .incomeStatus(toExecutionRows(incomeTree, chartNodes(incomeTree), records, FinancialRecordType.INCOME))
                 .expenseStatus(
                         toExecutionRows(expenseTree, expenseTree.getRoots(), records, FinancialRecordType.EXPENSE))
                 .build();
@@ -252,9 +255,11 @@ public class ReportServiceImpl implements ReportService {
 
     private List<org.church.steward.domain.report.dto.PeriodTrendDto> periodTrend(long year, LocalDate from,
             LocalDate to, List<FinancialRecord> records, boolean monthly) {
-        Set<Long> gifts = new HashSet<>(jdbc.queryForList(
-                "SELECT K.RECORD_ID FROM ACCT_LINK K JOIN FINANCIAL_RECORD R ON R.ID=K.RECORD_ID WHERE R.FISCAL_YEAR_ID=? AND R.DATE BETWEEN ? AND ? AND R.CANCELLED=FALSE AND K.STATUS='POSTED' AND K.OFFERING_TYPE_ID IS NOT NULL",
-                Long.class, year, from, to));
+        Map<Long, String> gifts = new HashMap<>();
+        for (var gift : jdbc.queryForList(
+                "SELECT K.RECORD_ID,T.NAME FROM ACCT_LINK K JOIN FINANCIAL_RECORD R ON R.ID=K.RECORD_ID JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.FISCAL_YEAR_ID=? AND R.DATE BETWEEN ? AND ? AND R.CANCELLED=FALSE AND K.STATUS='POSTED'",
+                year, from, to))
+            gifts.put(((Number) gift.get("RECORD_ID")).longValue(), gift.get("NAME").toString());
         Map<String, long[]> buckets = new java.util.TreeMap<>();
         for (LocalDate day = from; !day.isAfter(to); day = monthly ? day.withDayOfMonth(1).plusMonths(1)
                 : day.plusDays(1))
@@ -269,11 +274,36 @@ public class ReportServiceImpl implements ReportService {
                 continue;
             int kind = record.getType() == FinancialRecordType.INCOME ? 0 : 1;
             totals[kind] = Math.addExact(totals[kind], record.getAmount());
-            if (kind == 0 && gifts.contains(record.getId()))
+            if (kind == 0 && gifts.containsKey(record.getId()))
                 totals[2] = Math.addExact(totals[2], record.getAmount());
         }
         return buckets.entrySet().stream().map(e -> new org.church.steward.domain.report.dto.PeriodTrendDto(e.getKey(),
-                e.getValue()[0], e.getValue()[1], e.getValue()[2])).toList();
+                e.getValue()[0], e.getValue()[1], e.getValue()[2],
+                org.church.steward.finance.ChartPart.records(records.stream()
+                        .filter(r -> (monthly ? java.time.YearMonth.from(r.getDate()).toString()
+                                : r.getDate().toString()).equals(e.getKey()))
+                        .toList()),
+                giftParts(records, gifts, e.getKey(), monthly))).toList();
+    }
+
+    private List<org.church.steward.finance.ChartPart> giftParts(List<FinancialRecord> records, Map<Long, String> gifts,
+            String bucket, boolean monthly) {
+        Map<org.church.steward.finance.ChartCategory, Long> totals = new LinkedHashMap<>();
+        for (var r : records)
+            if (gifts.containsKey(r.getId())
+                    && (monthly ? java.time.YearMonth.from(r.getDate()).toString() : r.getDate().toString())
+                            .equals(bucket))
+                totals.merge(org.church.steward.finance.ChartCategory.offering(gifts.get(r.getId())), r.getAmount(),
+                        Math::addExact);
+        return totals.entrySet().stream().map(e -> new org.church.steward.finance.ChartPart(e.getKey(), e.getValue()))
+                .toList();
+    }
+
+    private List<Node> chartNodes(BudgetTree tree) {
+        return tree.getRoots().stream()
+                .flatMap(n -> org.church.steward.finance.ChartCategory.offeringRoot(n.getBudget().getName())
+                        && !n.getChildren().isEmpty() ? n.getChildren().stream() : java.util.stream.Stream.of(n))
+                .toList();
     }
 
     /**

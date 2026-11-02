@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class FinanceWeb {
     private final FinanceEngine engine;
     private final FinanceCommands commands;
+    private final PledgeService pledges;
     private final UserRepository users;
     private final PasswordEncoder passwords;
     private final FinancialRecordService records;
@@ -271,6 +272,11 @@ public class FinanceWeb {
                 throw new IllegalArgumentException("조회 기간을 확인하세요.");
             if (e.getRequestMethod().equals("GET")) {
                 switch (path) {
+                case "/api/pledges" -> {
+                    if (!session.admin)
+                        throw new SecurityException("관리자 권한이 필요합니다.");
+                    send(e, 200, pledges.summary(from, to));
+                }
                 case "/api/me" -> send(e, 200, Map.of("admin", session.admin));
                 case "/api/public-preview" -> send(e, 200, engine.publicReport(from, to));
                 case "/api/report" -> send(e, 200, engine.report(from, to));
@@ -338,6 +344,8 @@ public class FinanceWeb {
             Map<String, Object> b = body(e);
             String op = String.valueOf(b.get("operation"));
             switch (op) {
+            case "pledge" -> pledges.save(b);
+            case "cancelPledge" -> pledges.cancel(FinanceEngine.number(b.get("id")));
             case "account", "offeringType" -> engine.settings(op, b);
             case "linkOfferings" ->
                 engine.linkBudgetOfferings(((List<?>) b.get("ids")).stream().map(FinanceEngine::number).toList());

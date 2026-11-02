@@ -93,7 +93,9 @@ final class BudgetStatusSection {
         for (BudgetExecutionDto row : rows) {
             table.addRow(RowStyle.NORMAL, 0,
                     ReportTable.text(row.getName()),
-                    ReportTable.bar(toRatio(row.getExecutionRate())),
+                    ReportTable.bar(toRatio(row.getExecutionRate()),
+                            row.getChartCategory() == null ? org.church.steward.ui.util.UIColors.REPORT_BAR
+                                    : row.getChartCategory().awtColor()),
                     ReportTable.text(ReportFormats.amount(row.getActualAmount())),
                     ReportTable.text(ReportFormats.amount(row.getBudgetedAmount())),
                     ReportTable.text(ReportFormats.rate(row.getExecutionRate())));

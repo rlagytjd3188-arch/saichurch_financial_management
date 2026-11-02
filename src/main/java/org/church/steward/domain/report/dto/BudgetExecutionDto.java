@@ -16,6 +16,7 @@ public class BudgetExecutionDto {
     private String name;
     /** 예산 계층에서의 깊이. 최상위 예산이 0이다. */
     private int depth;
+    private org.church.steward.finance.ChartCategory chartCategory;
     private long budgetedAmount;
     private long actualAmount;
     /** 같은 구분의 예산 총액에서 이 예산이 차지하는 비율(%). 예산 총액이 0이면 null */

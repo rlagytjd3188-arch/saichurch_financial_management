@@ -64,6 +64,7 @@ public final class WeeklySettlementReportComposer {
         canvas.moveDown(SECTION_SPACING);
 
         PeriodTrendSection.render(canvas, monthly ? "월간" : "주간", report.getPeriodTrend());
+        PledgeSection.render(canvas, report.getPledges());
         String statusSuffix = String.format(" (%s까지 누계)", report.getEndDate()
                 .format(SHORT_DATE_FORMAT));
         BudgetStatusSection.render(canvas, report.getIncomeStatus(), report.getExpenseStatus(), STATUS_SIZE,

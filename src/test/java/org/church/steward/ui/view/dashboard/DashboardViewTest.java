@@ -35,6 +35,18 @@ class DashboardViewTest {
         when(selector.getSelectedFiscalYear()).thenReturn(FiscalYearDto.builder().id(1L).name("검증 연도")
                 .startDate(LocalDate.of(2044, 1, 1)).endDate(LocalDate.of(2044, 12, 31)).build());
         when(controller.getFiscalYearSummary(1L)).thenReturn(summary(100000, 5070000));
+        var income = org.church.steward.finance.ChartCategory.offering("약정헌금");
+        var thanks = org.church.steward.finance.ChartCategory.offering("감사헌금");
+        var expense = org.church.steward.finance.ChartCategory.named("EXPENSE", "관리비");
+        when(controller.getMonthlyTrend(1L)).thenReturn(java.util.stream.IntStream
+                .rangeClosed(1, 12).mapToObj(m -> org.church.steward.domain.dashboard.dto.MonthlyTrendDto.builder()
+                        .yearMonth(String.format("2044-%02d", m)).income(m == 1 ? 100000 : 0)
+                        .expense(m == 1 ? 30000 : 0)
+                        .breakdown(m == 1 ? List.of(new org.church.steward.finance.ChartPart(income, 80000),
+                                new org.church.steward.finance.ChartPart(thanks, 20000),
+                                new org.church.steward.finance.ChartPart(expense, 30000)) : List.of())
+                        .build())
+                .toList());
         AtomicReference<DashboardView> ref = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
             com.formdev.flatlaf.FlatLightLaf.setup();
@@ -78,7 +90,15 @@ class DashboardViewTest {
 
     private static FiscalYearSummaryDto summary(long income, long balance) {
         return FiscalYearSummaryDto.builder().openingBalance(5000000).carriedFunds(5000000)
-                .totalIncome(income).totalExpense(30000).currentBalance(balance).build();
+                .totalIncome(income).totalExpense(30000).currentBalance(balance)
+                .pledges(new org.church.steward.finance.PledgeService.Summary(LocalDate.of(2044, 1, 1),
+                        LocalDate.of(2044, 12, 31), 200000, 80000, 80000,
+                        java.util.stream.IntStream.rangeClosed(1, 12)
+                                .mapToObj(m -> new org.church.steward.finance.PledgeService.Month(
+                                        String.format("2044-%02d", m), m <= 2 ? 100000 : 0, m == 1 ? 80000 : 0))
+                                .toList(),
+                        List.of()))
+                .build();
     }
 
     private static void load(DashboardView view, Runnable action) throws Exception {

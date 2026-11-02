@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AnnualSettlementReportDto {
+    private org.church.steward.finance.PledgeService.Summary pledges;
     private String fiscalYearName;
     /** 선택 기간의 일별/월별 발생액. 누계와 별도로 그래프에 사용한다. */
     @Builder.Default

@@ -42,13 +42,26 @@ const fs = require("node:fs");
     await page.locator("#cumulative").check();
     await page.screenshot({ path: out + "/dashboard.png", fullPage: true });
     await page.getByRole("button", { name: "헌금자", exact: true }).click();
+    await page.locator('[data-pledge-contact="9003"]').click();
+    await page.locator('#editForm [name=amount]').fill('100000');
+    await page.locator('#editForm [name=start]').fill('2044-01');
+    await page.locator('#editForm [name=end]').fill('2044-12');
+    await page.locator('#editForm button').click();
+    await page.waitForFunction(()=>[...document.querySelectorAll('#contactsTable tr')].some(r=>r.textContent.includes('검증 개인 이름')&&r.textContent.includes('1,200,000')&&r.textContent.includes('8.3%')));
+    await page.getByRole('button',{name:'대시보드',exact:true}).click();
+    assert.ok(await page.locator('[data-series-key="pledgeTarget"]').count()>0);
+    assert.ok(await page.locator('[data-series-key="full"]').count()>0);
+    const catalogue=await page.evaluate(()=>report.chartCategories);
+    for(const c of catalogue) assert.ok(await page.locator('svg [data-series-key="'+c.key+'"][fill="'+c.color+'"]').count()>0);
+    await page.screenshot({path:out+'/pledge-dashboard.png',fullPage:true});
+    await page.getByRole("button", { name: "헌금자", exact: true }).click();
     await page.locator("[data-new-contact]").click();
     await page.locator("#editForm [name=name]").fill("브라우저 신규 헌금자");
     await page.locator("#editForm button").click();
     await page
       .locator("#contactsTable tr")
       .filter({ hasText: "브라우저 신규 헌금자" })
-      .locator("button")
+      .locator("[data-contact]")
       .click();
     await page.locator("#editForm [name=name]").fill("브라우저 수정 헌금자");
     await page.locator("#editForm [name=active]").selectOption("false");
@@ -221,7 +234,7 @@ const fs = require("node:fs");
     assert.equal(response.status(), 404);
     assert.deepEqual(errors, []);
     console.log(
-      "Browser smoke passed: four-character login, gift/reversal, six charts, PDF, mobile, and public projection.",
+      "Browser smoke passed: four-character login, gift/reversal, category colors, monthly pledges, target/rate lines, PDF, mobile, and public projection.",
     );
   } finally {
     await browser.close();

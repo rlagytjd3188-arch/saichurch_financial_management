@@ -74,6 +74,8 @@ public class ReportMapper {
         return BudgetExecutionDto.builder()
                 .name(entity.getName())
                 .depth(depth)
+                .chartCategory(org.church.steward.finance.ChartCategory.budget(entity,
+                        entity.getType() == null ? "INCOME" : entity.getType().name()))
                 .budgetedAmount(budgetedAmount)
                 .actualAmount(actualAmount)
                 .shareRate(shareRate)

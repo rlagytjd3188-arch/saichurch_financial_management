@@ -42,6 +42,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final FiscalYearRepository fiscalYearRepository;
     private final DashboardMapper dashboardMapper;
     private final org.church.steward.finance.AccountBalanceService accountBalanceService;
+    private final org.church.steward.finance.PledgeService pledgeService;
 
     @Override
     public FiscalYearSummaryDto getFiscalYearSummary(Long fiscalYearId) {
@@ -54,6 +55,7 @@ public class DashboardServiceImpl implements DashboardService {
         long carriedFunds = accountBalanceService.carriedFunds(fiscalYearId, year.getStartDate(), year.getEndDate());
 
         return FiscalYearSummaryDto.builder()
+                .pledges(pledgeService.summary(year.getStartDate(), year.getEndDate()))
                 .totalIncome(totalIncome)
                 .totalExpense(totalExpense)
                 .openingBalance(accountBalanceService.openingBalance(null, year.getEndDate()))
@@ -68,7 +70,11 @@ public class DashboardServiceImpl implements DashboardService {
         List<FinancialRecord> records = findRecords(fiscalYearId, null);
 
         return budgets.stream()
-                .filter(b -> b.getParent() == null)
+                .filter(b -> b.getParent() == null
+                        && !(org.church.steward.finance.ChartCategory.offeringRoot(b.getName())
+                                && !b.getChildren().isEmpty())
+                        || b.getParent() != null && b.getParent().getParent() == null
+                                && org.church.steward.finance.ChartCategory.offeringRoot(b.getParent().getName()))
                 .sorted(Comparator.comparing(Budget::getType)
                         .thenComparingInt(Budget::getSortOrder))
                 .map(budget -> {
@@ -104,6 +110,7 @@ public class DashboardServiceImpl implements DashboardService {
                     .yearMonth(entry.getKey().toString())
                     .income(sumAmount(entry.getValue(), FinancialRecordType.INCOME))
                     .expense(sumAmount(entry.getValue(), FinancialRecordType.EXPENSE))
+                    .breakdown(org.church.steward.finance.ChartPart.records(entry.getValue()))
                     .build());
         }
         return monthlyTrendList;

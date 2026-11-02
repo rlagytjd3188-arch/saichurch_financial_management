@@ -17,4 +17,8 @@ public class MonthlyTrendDto {
     private String yearMonth;
     private long income;
     private long expense;
+    @Builder.Default
+    private java.util.List<org.church.steward.finance.ChartPart> breakdown = java.util.List.of();
+    private long pledgeTarget;
+    private long pledgeActual;
 }

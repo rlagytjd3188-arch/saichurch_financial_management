@@ -179,7 +179,8 @@ class BudgetProgressList extends JComponent implements Scrollable {
                 : 0;
         if (meterWidth > 0) {
             ProgressMeter.paintMeter(g2, meterX, centerY - ProgressMeter.THICKNESS / 2, meterWidth, ratio,
-                    getTypeColor(item.getType()));
+                    item.getChartCategory() == null ? getTypeColor(item.getType())
+                            : item.getChartCategory().awtColor());
         }
 
         String rate = formatRate(item);

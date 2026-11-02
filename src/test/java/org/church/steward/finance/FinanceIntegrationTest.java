@@ -28,6 +28,8 @@ class FinanceIntegrationTest {
     @Autowired
     FinanceCommands commands;
     @Autowired
+    PledgeService pledges;
+    @Autowired
     JdbcTemplate jdbc;
     @Autowired
     FinancialRecordService records;
@@ -159,6 +161,144 @@ class FinanceIntegrationTest {
     }
 
     private final LocalDate date = LocalDate.of(2044, 1, 5);
+
+    private void pledge(long contact, long amount, String start, String end) {
+        var body = new HashMap<String, Object>();
+        body.put("contact", contact);
+        body.put("amount", amount);
+        body.put("start", start);
+        body.put("end", end);
+        pledges.save(body);
+    }
+
+    @Test
+    void monthlyPledgesUseActualOfferingAllocationsWithoutDoubleCounting() {
+        pledge(9003, 100000, "2044-01", "2044-03");
+        pledge(9005, 200000, "2044-02", null);
+        long paid = record(true, 80000);
+        engine.classify(paid, account("1100"), account("4000"), giftType(), Map.of(9003L, 80000L));
+        long feb = datedRecord(true, 150000, LocalDate.of(2044, 2, 5));
+        records.updateFinancialRecordsContacts(List.of(feb), List.of(9003L, 9005L));
+        engine.classify(feb, account("1100"), account("4000"), giftType(), Map.of(9003L, 100000L, 9005L, 50000L));
+        long unallocated = datedRecord(true, 20000, LocalDate.of(2044, 2, 7));
+        records.updateFinancialRecordsContacts(List.of(unallocated), List.of(9003L, 9005L));
+        engine.classify(unallocated, account("1100"), account("4000"), giftType(), null);
+        var summary = pledges.summary(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 2, 29));
+        assertThat(summary.target()).isEqualTo(400000);
+        assertThat(summary.actual()).isEqualTo(250000);
+        assertThat(summary.percent()).isEqualTo(62.5);
+        assertThat(summary.allocated()).isEqualTo(230000);
+        assertThat(summary.unallocated()).isEqualTo(20000);
+        assertThat(summary.monthly().getFirst().percent()).isEqualTo(80);
+        assertThat(summary.people()).anySatisfy(p -> {
+            assertThat(p.id()).isEqualTo(9003);
+            assertThat(p.target()).isEqualTo(200000);
+            assertThat(p.actual()).isEqualTo(180000);
+            assertThat(p.percent()).isEqualTo(90);
+        });
+        assertThat(summary.people()).anySatisfy(p -> {
+            assertThat(p.id()).isEqualTo(9005);
+            assertThat(p.percent()).isEqualTo(25);
+        });
+        records.deleteFinancialRecords(List.of(paid));
+        assertThat(pledges.summary(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 2, 29)).actual()).isEqualTo(170000);
+        assertThat(pledges.summary(LocalDate.of(2044, 2, 6), LocalDate.of(2044, 2, 8)).actual()).isEqualTo(170000);
+    }
+
+    @Test
+    void pledgeHistoryDoesNotOverlapAndPreservesOldMonthlyTargets() {
+        pledge(9003, 100000, "2044-01", "2044-03");
+        assertThatThrownBy(() -> pledge(9003, 200000, "2044-03", null)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("겹칩니다");
+        pledge(9003, 200000, "2044-04", null);
+        var summary = pledges.summary(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 12, 31));
+        assertThat(summary.target()).isEqualTo(2100000);
+        assertThat(summary.monthly().get(2).target()).isEqualTo(100000);
+        assertThat(summary.monthly().get(3).target()).isEqualTo(200000);
+        var crossMonth = reportService
+                .getWeeklySettlementReport(9000L, LocalDate.of(2044, 3, 29), LocalDate.of(2044, 4, 4)).getPledges();
+        assertThat(crossMonth.from()).isEqualTo(LocalDate.of(2044, 4, 1));
+        assertThat(crossMonth.target()).isEqualTo(200000);
+        assertThatThrownBy(() -> pledge(9003, 0, "2045-01", null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> pledge(9004, 10000, "2044-01", null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> pledge(9003, 10000, "2045-03", "2045-02"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(engine.report(date, date).get("income")).isEqualTo("0");
+        assertThat(dashboardService.getFiscalYearSummary(9000L).getPledges().target()).isEqualTo(2100000);
+        assertThat(reportService.getAnnualSettlementReport(9000L).getPledges().target()).isEqualTo(2100000);
+        long id = FinanceEngine.number(pledges.commitments().getLast().get("ID"));
+        pledges.cancel(id);
+        assertThat(pledges.summary(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 12, 31)).target()).isEqualTo(300000);
+        assertThat(jdbc.queryForObject("SELECT CANCELLED FROM PLEDGE_COMMITMENT WHERE ID=?", Boolean.class, id))
+                .isTrue();
+    }
+
+    @Test
+    void pledgeRatesAllowOverpaymentAndNoPromiseWithoutInventingPercent() {
+        long gift = record(true, 150000);
+        engine.classify(gift, account("1100"), account("4000"), giftType(), null);
+        assertThat(pledges.summary(date, date).percent()).isNull();
+        pledge(9003, 100000, "2044-01", "2044-01");
+        assertThat(pledges.summary(date, date).percent()).isEqualTo(150);
+        assertThat(pledges.summary(LocalDate.of(2044, 2, 1), LocalDate.of(2044, 2, 29)).percent()).isNull();
+        var publicSummary = (PledgeService.Summary) engine.publicReport(date, date).get("pledges");
+        assertThat(publicSummary.people()).isEmpty();
+        assertThat(publicSummary.target()).isEqualTo(100000);
+        var json = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()
+                .writeValueAsString(publicSummary);
+        assertThat(json).contains("\"target\":\"100000\"", "\"percent\":150.0").doesNotContain("검증 개인 이름", "9003");
+    }
+
+    @Test
+    void chartsGroupFirstLevelAndOfferingSecondLevelAcrossWebNativeAndPdf(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path temp) throws Exception {
+        jdbc.update("UPDATE BUDGET SET NAME='헌금수입' WHERE ID=9001");
+        jdbc.update(
+                "INSERT INTO BUDGET(ID,FISCAL_YEAR_ID,TYPE,NAME,AMOUNT,SORT_ORDER,PARENT_ID) VALUES(9010,9000,'INCOME','약정헌금',1000000,1,9001),(9011,9000,'INCOME','감사헌금',1000000,2,9001),(9012,9000,'INCOME','세부 항목',1000000,1,9010),(9013,9000,'EXPENSE','관리비',1000000,2,NULL),(9014,9000,'EXPENSE','전기료',1000000,1,9013)");
+        commands.record(Map.of("kind", "INCOME", "year", 9000, "budget", 9012, "date", date.toString(), "amount", 80000,
+                "contact", 9003));
+        commands.record(Map.of("kind", "INCOME", "year", 9000, "budget", 9011, "date", date.toString(), "amount", 20000,
+                "contact", 9003));
+        commands.record(Map.of("kind", "EXPENSE", "year", 9000, "budget", 9014, "date", date.toString(), "amount",
+                30000, "contact", 9004));
+        pledge(9003, 100000, "2044-01", "2044-12");
+        var web = engine.report(date, date);
+        var categories = (List<Map<String, String>>) web.get("chartCategories");
+        assertThat(categories).extracting(c -> c.get("label")).containsExactlyInAnyOrder("헌금수입 / 약정헌금", "헌금수입 / 감사헌금",
+                "관리비");
+        assertThat(categories).extracting(c -> c.get("color")).doesNotHaveDuplicates();
+        var nativeMonth = dashboardService.getMonthlyTrend(9000L).getFirst();
+        assertThat(nativeMonth.getBreakdown().stream().mapToLong(ChartPart::amount).sum()).isEqualTo(130000);
+        for (var part : nativeMonth.getBreakdown())
+            assertThat(categories).anySatisfy(c -> {
+                assertThat(c.get("key")).isEqualTo(part.category().key());
+                assertThat(c.get("color")).isEqualTo(part.category().color());
+                assertThat(c.get("amount")).isEqualTo(String.valueOf(part.amount()));
+            });
+        var report = reportService.getWeeklySettlementReport(9000L, date, date);
+        assertThat(report.getPeriodTrend().getFirst().breakdown()).hasSize(3);
+        assertThat(report.getIncomeStatus()).extracting(x -> x.getName()).contains("약정헌금", "감사헌금")
+                .doesNotContain("헌금수입");
+        var doc = org.church.steward.ui.view.report.composer.WeeklySettlementReportComposer.compose(report,
+                org.church.steward.ui.view.report.layout.ReportStyle.DEFAULT);
+        var file = temp.resolve("분류-약정.pdf");
+        org.church.steward.ui.view.report.output.ReportPdfExporter.export(doc, file);
+        try (var pdf = org.apache.pdfbox.Loader.loadPDF(file.toFile())) {
+            assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(pdf)).contains("약정 목표(100%)", "실제(%)",
+                    "80.0%", "헌금수입 / 약정헌금", "헌금수입 / 감사헌금");
+            String output = System.getenv("SAI_PLEDGE_SAMPLES");
+            if (output != null) {
+                var out = java.nio.file.Path.of(output);
+                java.nio.file.Files.createDirectories(out);
+                java.nio.file.Files.copy(file, out.resolve(file.getFileName()),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                for (int i = 0; i < pdf.getNumberOfPages(); i++)
+                    javax.imageio.ImageIO.write(
+                            new org.apache.pdfbox.rendering.PDFRenderer(pdf).renderImageWithDPI(i, 110), "png",
+                            out.resolve("report-" + i + ".png").toFile());
+            }
+        }
+    }
 
     @Test
     @DisplayName("기초잔액만 있어도 메인 대시보드·연도 목록·보고서·공개 잔액이 같고 수입 그래프는 0이다")
@@ -586,6 +726,9 @@ class FinanceIntegrationTest {
                     http(client, "POST", "/api/write", rc, "{\"operation\":\"share\",\"enabled\":true}").statusCode())
                     .isEqualTo(403);
             assertThat(http(client, "GET", "/api/data", rc, null).statusCode()).isEqualTo(403);
+            assertThat(http(client, "GET", "/api/pledges", rc, null).statusCode()).isEqualTo(403);
+            assertThat(http(client, "GET", "/api/pledges?from=2044-01-01&to=2044-12-31", cookie, null).body())
+                    .contains("검증 개인 이름");
             String runner = System.getenv("SAI_BROWSER_SMOKE");
             if (runner != null) {
                 Process browser = new ProcessBuilder("node", runner).inheritIO().start();
@@ -636,6 +779,7 @@ class FinanceIntegrationTest {
 
     @BeforeEach
     void setup() {
+        jdbc.update("DELETE FROM PLEDGE_COMMITMENT");
         for (String table : List.of("OFFERING_ALLOCATION", "ACCT_LINK", "ACCT_LINE"))
             jdbc.update("DELETE FROM " + table);
         jdbc.update("DELETE FROM ACCT_ENTRY WHERE REVERSES_ID IS NOT NULL");

@@ -76,6 +76,9 @@ class ReportServiceImplTest {
     @Mock
     private org.church.steward.finance.AccountBalanceService accountBalanceService;
 
+    @Mock
+    private org.church.steward.finance.PledgeService pledgeService;
+
     @InjectMocks
     private ReportServiceImpl reportService;
 
@@ -157,7 +160,7 @@ class ReportServiceImplTest {
         }
 
         @Test
-        @DisplayName("현황은 최상위 예산별로 하위 예산의 예산액과 종료일까지의 집행액을 합산한다")
+        @DisplayName("헌금 현황은 2차 예산별로 하위 예산의 예산액과 종료일까지의 집행액을 합산한다")
         @SuppressWarnings("unchecked")
         void getWeeklySettlementReport_BudgetWithChildren_SumsChildrenIntoTopLevelStatus() {
             // Given
@@ -181,7 +184,7 @@ class ReportServiceImplTest {
             assertThat(result.getIncomeStatus())
                     .extracting(BudgetExecutionDto::getName, BudgetExecutionDto::getBudgetedAmount,
                             BudgetExecutionDto::getActualAmount, BudgetExecutionDto::getExecutionRate)
-                    .containsExactly(tuple("헌금", 1000L, 250L, 25.0));
+                    .containsExactly(tuple("십일조", 600L, 150L, 25.0), tuple("감사헌금", 400L, 100L, 25.0));
         }
 
         @Test
