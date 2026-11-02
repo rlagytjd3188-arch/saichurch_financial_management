@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs';
 import {chromium} from 'playwright-core';
 import assert from 'node:assert/strict';
 import {mkdirSync,mkdtempSync} from 'node:fs';
@@ -33,7 +34,12 @@ try{
  const bankReview=page.locator('tr').filter({has:page.getByText('감사헌금',{exact:true})});await bankReview.locator('select').nth(1).selectOption(id('약정헌금'));await page.getByRole('button',{name:'선택한 거래 장부 반영'}).click();await page.getByText('모든 거래가 분류되었습니다',{exact:true}).waitFor();
  const backup=await page.request.get(`${base}/api/export?kind=backup`);assert.equal(backup.status(),200);assert.equal((await backup.json()).entries.length,3);
 
+ await page.getByRole('button',{name:'은행내역 가져오기',exact:true}).click();
+ const workbook=new ExcelJS.Workbook();const ws=workbook.addWorksheet('이전통장 내역');ws.addRows([['거래일시','구분','거래금액','거래 후 잔액','거래구분','내용','메모'],['2088.01.01 09:00:00','입금',100000,100000,'입금','이전 장부 거래','테스트 원본']]);const guideSheet=workbook.addWorksheet('계정 가이드');guideSheet.addRows([['수입 계정','코드','지출 계정','코드'],['이전수익',9801,'이전비용',9802]]);
+ const chooserPromise=page.waitForEvent('filechooser');await page.getByRole('button',{name:'기존 장부 XLSX 선택',exact:true}).click();const chooser=await chooserPromise;await chooser.setFiles({name:'synthetic-workbook.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await workbook.xlsx.writeBuffer())});
+ await page.getByLabel('기존 장부 회계연도').waitFor();await page.getByLabel('계좌 연결·기초잔액·예산 연결과 기존 거래 중복 여부를 확인했습니다.').check();await page.getByRole('button',{name:'확인한 설정과 원본 가져오기',exact:true}).click();await page.getByText(/2088년 원본 1건을 저장했습니다/).waitFor();
+ const migrated=await(await page.request.get(`${base}/api/data`)).json();assert.equal(migrated.entries.length,3);assert.equal(migrated.bank_rows.filter(r=>r.date.startsWith('2088')).length,1);assert.ok(migrated.accounts.some(a=>a.code==='9801'));
  const bad=await page.request.post(`${base}/api/data`,{headers:{Origin:'https://evil.example'},data:{action:'year',payload:{year:2099}}});assert.equal(bad.status(),400);
  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'메뉴',exact:true}).click();await page.getByRole('button',{name:'대시보드',exact:true}).click();await page.screenshot({path:'/tmp/church-artifacts/dashboard-mobile.png',fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'mobile overflow');assert.deepEqual(errors,[]);
- console.log('PASS: browser forms, journal details, CSV upload/review/posting, backup, 8 exports, cross-origin rejection, mobile layout');
+ console.log('PASS: browser forms, journal details, CSV upload/review/posting, backup, multi-sheet migration, 8 exports, cross-origin rejection, mobile layout');
 }catch(e){mkdirSync('/tmp/church-artifacts',{recursive:true});await page.screenshot({path:'/tmp/church-artifacts/failure.png',fullPage:true});console.error('Page errors:',errors);throw e;}finally{await browser.close();server?.kill();}
