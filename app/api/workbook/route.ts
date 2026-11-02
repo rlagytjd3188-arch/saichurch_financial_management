@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {localOnly,failure} from '../../../lib/access';
+import {analyzeManagedLedger} from '../../../lib/managed-ledger';
 import {analyzeWorkbook} from '../../../lib/church-workbook';
 import {createWorkbookPreview} from '../../../lib/workbook-preview';
 export const runtime='nodejs';
@@ -14,5 +15,6 @@ export async function POST(req:Request){try{
  }
  const {token,options}=await req.json();if(typeof token!=='string'||! /^[0-9a-f-]{36}$/.test(token)||!options)throw Error('파일을 다시 업로드하세요.');
  const buffer=await readFile(path.join(dir,`${token}.xlsx`)).catch(()=>{throw Error('업로드 파일이 없습니다. 다시 업로드하세요.');});
+ const managed=await analyzeManagedLedger(buffer);if(managed){const {importManagedLedger}=await import('../../../lib/managed-store');return Response.json({ok:true,...importManagedLedger(managed,options)});}
  const plan=await analyzeWorkbook(buffer);const {importWorkbook}=await import('../../../lib/workbook-store');return Response.json({ok:true,...importWorkbook(plan,options)});
  }catch(e){return failure(e);}}

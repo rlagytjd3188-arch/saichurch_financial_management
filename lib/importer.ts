@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import {isManagedBook} from './managed-ledger.ts';
 import {cellText,isBankSheet} from './excel-cell.ts';
 export class ChurchWorkbookDetected extends Error {constructor(){super('기존 교회 장부 형식입니다.');}}
 import {parse} from 'csv-parse/sync';
@@ -7,7 +8,7 @@ export async function parseFile(buffer:Buffer,name:string):Promise<string[][]>{
  if(buffer.length>10*1024*1024)throw Error('파일은 10MB 이하로 선택하세요.');
  let rows:string[][]=[];
  if(name.toLowerCase().endsWith('.csv')){let text=buffer.toString('utf8');if(text.includes('\uFFFD'))text=new TextDecoder('euc-kr').decode(buffer);rows=parse(text,{bom:true,skip_empty_lines:true,relax_column_count:true});}
- else if(name.toLowerCase().endsWith('.xlsx')){const book=new ExcelJS.Workbook();await book.xlsx.load(buffer as never);if(book.worksheets.some(isBankSheet))throw new ChurchWorkbookDetected();const sheet=book.worksheets[0];if(!sheet)throw Error('첫 번째 시트가 비어 있습니다.');sheet.eachRow(row=>{const cells:string[]=[];for(let i=1;i<=sheet.columnCount;i++){const c=row.getCell(i);cells.push(c.value instanceof Date?c.value.toISOString().slice(0,10):cellText(c));}rows.push(cells);});}
+ else if(name.toLowerCase().endsWith('.xlsx')){const book=new ExcelJS.Workbook();await book.xlsx.load(buffer as never);if(isManagedBook(book)||book.worksheets.some(isBankSheet))throw new ChurchWorkbookDetected();const sheet=book.worksheets[0];if(!sheet)throw Error('첫 번째 시트가 비어 있습니다.');sheet.eachRow(row=>{const cells:string[]=[];for(let i=1;i<=sheet.columnCount;i++){const c=row.getCell(i);cells.push(c.value instanceof Date?c.value.toISOString().slice(0,10):cellText(c));}rows.push(cells);});}
  else throw Error('CSV 또는 XLSX 파일만 지원합니다.');
  if(rows.length>10001)throw Error('한 번에 10,000행까지 가져올 수 있습니다.');if(rows.length<2)throw Error('헤더와 거래 데이터가 필요합니다.');return rows;
 }

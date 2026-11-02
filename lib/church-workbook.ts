@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import {cellValue,cellText,isBankSheet} from './excel-cell.ts';
 import {createHash} from 'node:crypto';
+import {REFERENCE_BANKS} from './managed-ledger.ts';
 import {validDate} from './accounting.ts';
 export type WorkbookRow={sheet:string;row:number;date:string;time:string;description:string;memo:string;deposit:string;withdrawal:string;balance:string;raw:string[];suggested_code?:string};
 export type Guide={code:string;name:string;type:'income'|'expense'};
@@ -13,7 +14,7 @@ export async function analyzeWorkbook(buffer:Buffer):Promise<WorkbookPlan>{
  const book=new ExcelJS.Workbook();await book.xlsx.load(buffer as never);
  const plan:WorkbookPlan={version:1,hash:createHash('sha256').update(buffer).digest('hex'),sheets:[],rows:[],guide:[],budgets:[],budgetYear:null,warnings:[],skipped:[],errors:[]};
  for(const sheet of book.worksheets){
-  if(!isBankSheet(sheet))continue;
+  if(REFERENCE_BANKS.includes(sheet.name)||!isBankSheet(sheet))continue;
   let count=0;const years=new Set<number>();
   sheet.eachRow((r,n)=>{if(n===1)return;const raw=Array.from({length:7},(_,i)=>{try{return String(value(r.getCell(i+1)));}catch{return '#ERROR!';}});if(raw.every(v=>!v.trim()))return;
    // Ignore side-by-side helper formulas and summaries, never treat them as transactions.
@@ -28,7 +29,7 @@ export async function analyzeWorkbook(buffer:Buffer):Promise<WorkbookPlan>{
    }catch(e){plan.errors.push({sheet:sheet.name,row:n,reason:(e as Error).message});}
   });plan.sheets.push({name:sheet.name,count,years:[...years].sort()});
  }
- if(!plan.sheets.length)throw Error('지원하는 통장 시트를 찾지 못했습니다. 첫 행이 거래일시 / 구분 / 거래금액 / 거래 후 잔액인지 확인하세요.');
+ if(!plan.sheets.length)throw Error('거래로 가져올 정리 장부를 찾지 못했습니다. 지정된 통장 4개는 참고용이므로 제외됩니다. 첫 행이 거래일시 / 구분 / 거래금액 / 거래 후 잔액인지 확인하세요.');
  if(plan.rows.length>20000)throw Error('한 번에 20,000건까지 분석할 수 있습니다.');
  const guide=book.getWorksheet('계정 가이드');guide?.eachRow((r,n)=>{if(n===1)return;for(const [nameCol,codeCol,type] of [[1,2,'income'],[3,4,'expense']] as const){const code=cellText(r.getCell(codeCol)).trim(),name=cellText(r.getCell(nameCol)).trim();if(!code||!name)continue;if(['100','221'].includes(code))continue;if(!/^\d+$/.test(code))continue;plan.guide.push({code,name,type});}});
  // Existing classified ledger is a recommendation source, never another transaction source.
