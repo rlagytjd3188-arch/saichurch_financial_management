@@ -1,9 +1,10 @@
 import {randomUUID,createHash} from 'node:crypto';
 import {localOnly,failure} from '../../../lib/access';
 import {db,atomic,audit,fingerprint,ensureOpen,post} from '../../../lib/db';
-import {parseFile,normalizeRow} from '../../../lib/importer';
+import {parseFile,normalizeRow,ChurchWorkbookDetected} from '../../../lib/importer';
+import {createWorkbookPreview} from '../../../lib/workbook-preview';
 export async function POST(req:Request){try{localOnly(req);
- if(req.headers.get('content-type')?.includes('multipart/form-data')){const form=await req.formData();const file=form.get('file') as File;if(!file||file.size>10*1024*1024)throw Error('10MB 이하의 파일을 선택하세요.');const rows=await parseFile(Buffer.from(await file.arrayBuffer()),file.name);return Response.json({rows,name:file.name});}
+ if(req.headers.get('content-type')?.includes('multipart/form-data')){const form=await req.formData();const file=form.get('file') as File;if(!file||file.size>10*1024*1024)throw Error('10MB 이하의 파일을 선택하세요.');const buffer=Buffer.from(await file.arrayBuffer());try{const rows=await parseFile(buffer,file.name);return Response.json({rows,name:file.name});}catch(e){if(e instanceof ChurchWorkbookDetected)return Response.json({workbook:await createWorkbookPreview(buffer,file.name)});throw e;}}
  const body=await req.json();
  if(body.action==='stage'){
  const {rows,map,cash_id,name}=body;if(!Array.isArray(rows)||rows.length>10001||rows.length<2)throw Error('파일 행 수를 확인하세요.');if(!db().prepare('SELECT id FROM financial_accounts WHERE id=? AND active=1').get(cash_id))throw Error('계좌를 선택하세요.');
