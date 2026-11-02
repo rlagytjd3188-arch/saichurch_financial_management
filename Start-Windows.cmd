@@ -18,11 +18,9 @@ if not exist node_modules (
   call npm ci --no-audit --no-fund
   if errorlevel 1 goto failed
 )
-if not exist .next\BUILD_ID (
-  echo Building the application. Please wait.
-  call npm run build
-  if errorlevel 1 goto failed
-)
+echo Building the current application. Please wait.
+call npm run build
+if errorlevel 1 goto failed
 echo Starting Church Finance. Keep this window open while using the app.
 echo Open http://127.0.0.1:3000 in your browser.
 start "" "http://127.0.0.1:3000"
