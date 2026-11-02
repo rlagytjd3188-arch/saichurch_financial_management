@@ -706,6 +706,34 @@
         message(e);
       }
     }
+    function selectionActions() {
+      return '<div class="actions"><label><input type="checkbox" data-record-select-all>전체 선택</label><button data-cancel-selected>선택 삭제</button><span id="selectionCount">0건 선택</span></div>';
+    }
+    function recordCheck(id) {
+      return (
+        '<input type="checkbox" data-record-select="' +
+        id +
+        '" aria-label="거래 선택">'
+      );
+    }
+    document.addEventListener("change", (e) => {
+      if (e.target.hasAttribute("data-record-select-all"))
+        document
+          .querySelectorAll("[data-record-select]")
+          .forEach((x) => (x.checked = e.target.checked));
+      if (
+        e.target.hasAttribute("data-record-select") ||
+        e.target.hasAttribute("data-record-select-all")
+      ) {
+        const n = new Set(
+          [...document.querySelectorAll("[data-record-select]:checked")].map(
+            (x) => x.dataset.recordSelect,
+          ),
+        ).size;
+        if ($("selectionCount"))
+          $("selectionCount").textContent = n + "건 선택";
+      }
+    });
     function pendingOfferings() {
       return (data.records || []).filter(
         (r) =>
@@ -1415,10 +1443,13 @@
           (r) => r.DATE >= $("from").value && r.DATE <= $("to").value,
         );
         h +=
-          '<section class="card"><div class="actions"><button data-new-record>수입·지출 입력</button><button data-new-journal>전문 회계 입력 / 기초잔액</button></div><p class="muted">일반 입력은 자동 분개합니다. 과거 REVIEW 거래는 계정을 확인해야 합니다. 거래를 클릭하면 차변·대변과 원본을 확인합니다.</p>' +
+          '<section class="card">' +
+          selectionActions() +
+          '<div class="actions"><button data-new-record>수입·지출 입력</button><button data-new-journal>전문 회계 입력 / 기초잔액</button></div><p class="muted">일반 입력은 자동 분개합니다. 과거 REVIEW 거래는 계정을 확인해야 합니다. 거래를 클릭하면 차변·대변과 원본을 확인합니다.</p>' +
           table(
-            ["일자", "구분", "내역", "금액", "회계 상태", "상세"],
+            ["선택", "일자", "구분", "내역", "금액", "회계 상태", "상세"],
             rows.map((r) => [
+              recordCheck(r.ID),
               esc(r.DATE),
               esc(r.TYPE === "INCOME" ? "수입" : "지출"),
               esc(r.DESCRIPTION),
@@ -1505,10 +1536,13 @@
           annual(gs) +
           "</section>";
         h +=
-          '<section class="card"><div class="actions"><h2>헌금 내역</h2><button data-new-gift>헌금 입력</button><button data-new-type>헌금 종류 추가</button></div>' +
+          '<section class="card">' +
+          selectionActions() +
+          '<div class="actions"><h2>헌금 내역</h2><button data-new-gift>헌금 입력</button><button data-new-type>헌금 종류 추가</button></div>' +
           table(
-            ["일자", "헌금자", "헌금 종류", "금액", "상세"],
+            ["선택", "일자", "헌금자", "헌금 종류", "금액", "상세"],
             gs.map((g) => [
+              recordCheck(g.ID),
               esc(g.DATE),
               esc(g.CONTACT_NAME || "미배분 그룹 헌금"),
               esc(g.TYPE_NAME),
@@ -2179,6 +2213,33 @@
       }
       const b = e.target.closest("button");
       if (!b) return;
+      if (b.hasAttribute("data-cancel-selected")) {
+        const ids = [
+          ...new Set(
+            [...document.querySelectorAll("[data-record-select]:checked")].map(
+              (x) => x.dataset.recordSelect,
+            ),
+          ),
+        ];
+        if (!ids.length) {
+          alert("삭제할 내역을 선택하세요.");
+          return;
+        }
+        if (
+          !confirm(
+            ids.length + "건을 삭제할까요? 원본과 취소 이력은 보존됩니다.",
+          )
+        )
+          return;
+        try {
+          await api("/api/write", { operation: "cancelSelected", ids });
+          await load();
+        } catch (x) {
+          message(x);
+        }
+        return;
+      }
+
       if (b.hasAttribute("data-review-offerings")) {
         reviewOfferings();
         return;

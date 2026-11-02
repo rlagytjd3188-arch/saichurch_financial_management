@@ -169,7 +169,7 @@ class DatabaseManagerTest {
             upgraded.migrate();
 
             // Then
-            assertThat(queryString(upgraded, "SELECT NAME || ':' || TEST_MEMO FROM CONTACT"))
+            assertThat(queryString(upgraded, "SELECT NAME || ':' || TEST_MEMO FROM CONTACT WHERE NAME='홍길동'"))
                     .isEqualTo("홍길동:migrated");
         }
 

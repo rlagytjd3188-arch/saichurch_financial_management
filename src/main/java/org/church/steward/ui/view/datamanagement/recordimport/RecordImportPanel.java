@@ -33,7 +33,7 @@ public class RecordImportPanel extends AbstractImportPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private static final String[] STEP_NAMES = { "파일 선택", "열 지정", "매핑", "검토 및 선택", "백업 및 반영" };
+    private static final String[] STEP_NAMES = { "파일 선택", "읽기 확인", "분류 확인", "내역 확인", "저장" };
     private static final int STEP_FILE = 0;
     private static final int STEP_COLUMNS = 1;
     private static final int STEP_MATCHING = 2;

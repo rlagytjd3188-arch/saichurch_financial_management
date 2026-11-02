@@ -107,7 +107,40 @@ const fs = require("node:fs");
       .locator("[data-record]")
       .click();
     assert.match(await page.locator("#modal").textContent(), /25,000/);
-    await page.locator("[data-cancel-record]").click();
+    await page.locator("#close").click();
+    await page.evaluate(async () => {
+      await api("/api/write", {
+        operation: "record",
+        kind: "INCOME",
+        year: "9000",
+        date: "2044-01-07",
+        amount: "15000",
+        budget: "9001",
+        contacts: ["9003"],
+        asset: data.accounts.find((a) => a.CODE === "1100").ID,
+        counterpart: data.accounts.find((a) => a.CODE === "4000").ID,
+        offering: data.types[0].ID,
+        memo: "합성 다중 삭제",
+      });
+      await load();
+    });
+    await page
+      .locator("#content tr")
+      .filter({ hasText: "25,000" })
+      .last()
+      .locator("[data-record-select]")
+      .check();
+    await page
+      .locator("#content tr")
+      .filter({ hasText: "15,000" })
+      .last()
+      .locator("[data-record-select]")
+      .check();
+    assert.equal(
+      await page.locator("#selectionCount").textContent(),
+      "2건 선택",
+    );
+    await page.locator("[data-cancel-selected]").click();
     await page.waitForFunction(
       () =>
         !document.querySelector("#modal").open &&

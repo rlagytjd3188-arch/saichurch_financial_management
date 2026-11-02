@@ -104,12 +104,14 @@ public class ItemizedTabPanel extends JPanel {
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setOpaque(false);
         headerPanel.add(totalCountLabel, BorderLayout.WEST);
+        headerPanel.add(table.selectionButtons(), BorderLayout.CENTER);
         headerPanel.add(toolbarPanel, BorderLayout.EAST);
         return headerPanel;
     }
 
     private JScrollPane createTablePane() {
         table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        table.setClickMultiSelection(true);
 
         setupColumn(ItemizedTableModel.COLUMN_DATE, 120, new PaddedCellRenderer(SwingConstants.CENTER));
         setupColumn(ItemizedTableModel.COLUMN_TYPE, 45, new PaddedCellRenderer(SwingConstants.CENTER));

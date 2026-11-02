@@ -62,6 +62,25 @@ public class ListTable extends JTable {
 
     private transient IntConsumer rowDoubleClickHandler;
 
+    private boolean clickMultiSelection;
+
+    public void setClickMultiSelection(boolean enabled) {
+        clickMultiSelection = enabled;
+    }
+
+    public javax.swing.JPanel selectionButtons() {
+        var panel = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+        panel.setOpaque(false);
+        var all = new javax.swing.JButton("전체 선택");
+        var clear = new javax.swing.JButton("선택 해제");
+        all.addActionListener(_ -> selectAll());
+        clear.addActionListener(_ -> clearSelection());
+        panel.add(all);
+        panel.add(clear);
+        panel.setToolTipText("행을 차례로 클릭하면 여러 건을 선택합니다. 다시 클릭하면 해제합니다.");
+        return panel;
+    }
+
     public ListTable(TableModel model) {
         super(model);
 
@@ -185,6 +204,10 @@ public class ListTable extends JTable {
      */
     @Override
     public void changeSelection(int row, int col, boolean toggle, boolean extend) {
+        if (clickMultiSelection && !toggle && !extend && EventQueue.getCurrentEvent() instanceof MouseEvent) {
+            super.changeSelection(row, col, true, false);
+            return;
+        }
         if (!toggle && !extend && EventQueue.getCurrentEvent() instanceof MouseEvent && getSelectedRowCount() == 1
                 && isRowSelected(row)) {
             clearRowSelection();

@@ -40,7 +40,7 @@ public class RecordImportSession extends ImportSession {
 
     private static final Pattern LEVEL_HEADER = Pattern.compile("(\\d+)단계");
     private static final Set<String> TYPE_HEADERS = Set.of("구분", "수입/지출", "종류");
-    private static final Set<String> DATE_HEADERS = Set.of("일자", "날짜", "일시", "거래일", "거래일자");
+    private static final Set<String> DATE_HEADERS = Set.of("일자", "날짜", "일시", "거래일", "거래일자", "거래일시");
     private static final Set<String> YEAR_HEADERS = Set.of("연", "년", "연도", "년도");
     private static final Set<String> INCOME_AMOUNT_HEADERS = Set.of("수입", "수입금액", "수입액", "입금", "입금액");
     private static final Set<String> EXPENSE_AMOUNT_HEADERS = Set.of("지출", "지출금액", "지출액", "출금", "출금액");
@@ -128,8 +128,21 @@ public class RecordImportSession extends ImportSession {
     private final Map<String, Boolean> explicitSelections = new HashMap<>();
     private final Set<String> selectedKeys = new LinkedHashSet<>();
 
+    private boolean bankStatement;
+
+    @Override
+    public void setData(java.nio.file.Path file, String password, boolean excel, List<String> sheets, String sheet,
+            java.nio.charset.Charset charset, org.church.steward.infrastructure.spreadsheet.SpreadsheetData data) {
+        bankStatement = org.church.steward.infrastructure.spreadsheet.BankStatementNormalizer.supports(data);
+        var normalized = org.church.steward.infrastructure.spreadsheet.BankStatementNormalizer.normalize(data);
+        super.setData(file, password, excel, sheets, sheet, charset, normalized);
+        if (bankStatement)
+            super.setHeaderRowNumber(1);
+    }
+
     @Override
     public void reset() {
+        bankStatement = false;
         resetFile();
         resetColumns();
         mappingGuessed = false;

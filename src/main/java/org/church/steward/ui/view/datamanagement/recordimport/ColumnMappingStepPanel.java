@@ -62,6 +62,9 @@ class ColumnMappingStepPanel extends JPanel {
 
     private static final ColumnOption NO_COLUMN = new ColumnOption(null, "(없음)");
 
+    private final javax.swing.JToggleButton advanced = new javax.swing.JToggleButton("고급 설정 펼치기");
+    private final JPanel formPanel = new JPanel(new GridBagLayout());
+    private final javax.swing.JLabel summaryLabel = new javax.swing.JLabel();
     private final RecordImportSession session;
 
     private final StyledComboBox<TypeModeOption> typeModeCombo = new StyledComboBox<>(TYPE_MODE_OPTIONS,
@@ -99,7 +102,6 @@ class ColumnMappingStepPanel extends JPanel {
         }
         budgetLevelPanel.add(labeled("전체", budgetPathColumnCombo));
 
-        JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setOpaque(false);
         int row = 0;
         addRow(formPanel, row++, "구분", columns(typeModeCombo, labeled("구분 열", typeColumnCombo)));
@@ -112,7 +114,26 @@ class ColumnMappingStepPanel extends JPanel {
         addRow(formPanel, row++, "", budgetLevelPanel);
         addRow(formPanel, row++, "그 밖의 항목", columns(labeled("내용", descriptionColumnCombo),
                 labeled("관계자", contactColumnCombo), labeled("비고", remarksColumnCombo)));
-        add(formPanel, BorderLayout.NORTH);
+        JPanel simple = new JPanel(new BorderLayout(0, 8));
+        simple.setOpaque(false);
+        simple.add(new javax.swing.JLabel("파일 내용을 자동으로 읽었습니다. 아래 설정이 맞으면 ‘다음’을 누르세요."), BorderLayout.NORTH);
+        JPanel summary = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT));
+        summary.setOpaque(false);
+        summary.add(summaryLabel);
+        simple.add(summary, BorderLayout.CENTER);
+
+        var wrapper = new JPanel(new BorderLayout());
+        wrapper.setOpaque(false);
+        wrapper.add(advanced, BorderLayout.NORTH);
+        wrapper.add(formPanel, BorderLayout.CENTER);
+        formPanel.setVisible(false);
+        advanced.addActionListener(_ -> {
+            formPanel.setVisible(advanced.isSelected());
+            advanced.setText(advanced.isSelected() ? "고급 설정 접기" : "고급 설정 펼치기");
+            revalidate();
+        });
+        simple.add(wrapper, BorderLayout.SOUTH);
+        add(simple, BorderLayout.NORTH);
 
         typeModeCombo.addActionListener(_ -> updateEnabled());
         dateModeCombo.addActionListener(_ -> updateEnabled());
@@ -200,6 +221,16 @@ class ColumnMappingStepPanel extends JPanel {
         setOptions(descriptionColumnCombo, options, session.getDescriptionColumn());
         setOptions(contactColumnCombo, options, session.getContactColumn());
         setOptions(remarksColumnCombo, options, session.getRemarksColumn());
+        summaryLabel.setText(
+                "날짜: " + (session.getDateColumn() == null ? "확인 필요" : session.getColumnLabel(session.getDateColumn()))
+                        + " / 입출금: " + typeModeCombo.getSelectedItem() + " / 세부 항목은 고급 설정에서 변경할 수 있습니다.");
+        if (session.isBankStatement())
+            summaryLabel.setText("<html>카카오뱅크 자동 인식 · " + session.getDataRowCount()
+                    + "건<br>입금 → 기타수입 / 출금 → 기타비용<br>거래상대는 미분류로 두고, 내용과 메모는 보존합니다.</html>");
+        boolean needsSettings = session.validateMapping() != null;
+        advanced.setSelected(needsSettings);
+        formPanel.setVisible(needsSettings);
+        advanced.setText(needsSettings ? "고급 설정 접기" : "고급 설정 펼치기");
         updateEnabled();
     }
 

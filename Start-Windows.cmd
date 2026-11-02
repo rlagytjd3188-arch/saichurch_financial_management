@@ -1,13 +1,13 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist "app\saichurch-1.3.2.txt" if exist "ChurchSteward.exe" goto here
-if exist "ChurchSteward\app\saichurch-1.3.2.txt" if exist "ChurchSteward\ChurchSteward.exe" goto packaged
+if exist "app\saichurch-1.3.3.txt" if exist "ChurchSteward.exe" goto here
+if exist "ChurchSteward\app\saichurch-1.3.3.txt" if exist "ChurchSteward\ChurchSteward.exe" goto packaged
 if exist "Build-Windows.cmd" (
   call Build-Windows.cmd
   exit /b
 )
-echo Download the customized Sai Church 1.3.2 Windows ZIP and extract all files first.
+echo Download the customized Sai Church 1.3.3 Windows ZIP and extract all files first.
 echo Open ChurchSteward.exe inside the extracted folder. Java is included in that ZIP.
 pause
 exit /b 1

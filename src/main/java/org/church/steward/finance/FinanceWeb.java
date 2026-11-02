@@ -370,6 +370,8 @@ public class FinanceWeb {
                     contacts.updateContact(dto.getId(), dto.getType(), dto.getName(), dto.getRemarks(), dto.isHidden());
             }
             case "record" -> commands.record(b);
+            case "cancelSelected" -> records.deleteFinancialRecords(
+                    ((List<?>) b.get("ids")).stream().map(FinanceEngine::number).distinct().toList());
             case "cancel" -> records.deleteFinancialRecords(List.of(FinanceEngine.number(b.get("id"))));
             case "reverseJournal" -> engine.reverseManual(FinanceEngine.number(b.get("id")));
             case "share" -> {

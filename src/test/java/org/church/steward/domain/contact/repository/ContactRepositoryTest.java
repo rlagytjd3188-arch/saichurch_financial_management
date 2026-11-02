@@ -19,6 +19,11 @@ class ContactRepositoryTest {
     @Autowired
     private ContactRepository contactRepository;
 
+    @org.junit.jupiter.api.BeforeEach
+    void isolateFixtures() {
+        contactRepository.deleteAll();
+    }
+
     @Nested
     @DisplayName("findAutocompleteCandidates 테스트")
     class FindAutocompleteCandidatesTest {

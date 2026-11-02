@@ -115,12 +115,14 @@ public class BudgetRecordPanel extends JPanel {
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setOpaque(false);
         headerPanel.add(titlePanel, BorderLayout.WEST);
+        headerPanel.add(table.selectionButtons(), BorderLayout.CENTER);
         headerPanel.add(toolbarPanel, BorderLayout.EAST);
         return headerPanel;
     }
 
     private JScrollPane createTablePane() {
         table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        table.setClickMultiSelection(true);
 
         // 예산명 칸의 렌더러는 TreeTable이 정한다.
         table.getColumnModel()

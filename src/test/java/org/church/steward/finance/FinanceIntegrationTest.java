@@ -115,6 +115,43 @@ class FinanceIntegrationTest {
     org.church.steward.domain.user.repository.UserRepository users;
     @Autowired
     org.springframework.security.crypto.password.PasswordEncoder encoder;
+
+    @Test
+    @DisplayName("카카오뱅크 안내문·음수 출금·거래일시를 자동 인식해 중복 없이 가져온다")
+    void kakaoBankImportPreservesTransactions() {
+        jdbc.update("UPDATE BUDGET SET NAME='기타수입' WHERE ID=9001");
+        jdbc.update("UPDATE BUDGET SET NAME='기타비용' WHERE ID=9002");
+        jdbc.update("INSERT INTO CONTACT(ID,TYPE,NAME,IS_HIDDEN) VALUES(9006,'OTHER','통장거래(미분류)',FALSE)");
+        List<List<Object>> raw = new ArrayList<>();
+        for (int i = 0; i < 10; i++)
+            raw.add(List.of("안내문"));
+        raw.add(List.of("", "거래일시", "구분", "거래금액", "거래 후 잔액", "거래구분", "내용", "메모"));
+        raw.add(List.of("", "2044.01.05 09:00:00", "입금", "1,000", "11,000", "이체", "합성 입금", "메모"));
+        raw.add(List.of("", "2044.01.05 10:00:00", "출금", "-500", "10,500", "이체", "합성 출금", ""));
+        raw.add(List.of("", "2044.01.05 11:00:00", "입금", "2,000", "12,500", "이체", "합성 입금", ""));
+        var session = new org.church.steward.ui.view.datamanagement.recordimport.RecordImportSession();
+        session.setData(java.nio.file.Path.of("bank.xlsx"), null, true, List.of("내역"), "내역", null,
+                new org.church.steward.infrastructure.spreadsheet.SpreadsheetData(raw, null));
+        session.guessMappingIfNeeded();
+        assertThat(session.isBankStatement()).isTrue();
+        assertThat(session.validateMapping()).isNull();
+        var request = session.toRequest();
+        var analysis = recordImporter.analyze(9000L, request);
+        assertThat(analysis.getItems()).hasSize(3)
+                .allMatch(org.church.steward.domain.datatransfer.dto.RecordImportItemDto::isSelectable);
+        var keys = analysis.getItems().stream()
+                .map(org.church.steward.domain.datatransfer.dto.RecordImportItemDto::getKey)
+                .collect(java.util.stream.Collectors.toSet());
+        recordImporter.importRecords(9000L, request, keys, analysis.getSignature(), activity.getLatestLogId(),
+                "bank.xlsx");
+        assertThat(engine.report(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 1, 31)).get("income")).isEqualTo("3000");
+        assertThat(engine.report(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 1, 31)).get("expense")).isEqualTo("500");
+        assertThat(engine.donations(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 1, 31))).isEmpty();
+        assertThat(recordImporter.analyze(9000L, request).getItems())
+                .allMatch(org.church.steward.domain.datatransfer.dto.RecordImportItemDto::isDuplicate);
+        balanced();
+    }
+
     private final LocalDate date = LocalDate.of(2044, 1, 5);
 
     @Autowired
