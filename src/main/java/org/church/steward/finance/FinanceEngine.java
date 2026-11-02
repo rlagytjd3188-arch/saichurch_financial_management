@@ -126,8 +126,17 @@ public class FinanceEngine {
         long asset = link.get("ASSET_ID") == null ? code("1100") : number(link.get("ASSET_ID"));
         long counterpart = link.get("COUNTERPART_ID") == null ? code("INCOME".equals(r.get("TYPE")) ? "4900" : "5900")
                 : number(link.get("COUNTERPART_ID"));
-        writeRecord(r, asset, counterpart,
-                link.get("OFFERING_TYPE_ID") == null ? null : number(link.get("OFFERING_TYPE_ID")));
+        Long offering = link.get("OFFERING_TYPE_ID") == null ? null : number(link.get("OFFERING_TYPE_ID"));
+        if (created && offering == null && "INCOME".equals(r.get("TYPE"))) {
+            var match = query(
+                    "SELECT T.ID FROM BUDGET B JOIN OFFERING_TYPE T ON T.NAME=B.NAME AND T.ACTIVE=TRUE WHERE B.ID=?",
+                    r.get("BUDGET_ID"));
+            if (match.size() == 1) {
+                offering = number(match.getFirst().get("ID"));
+                counterpart = code("4000");
+            }
+        }
+        writeRecord(r, asset, counterpart, offering);
     }
 
     private void writeRecord(Map<String, Object> r, long asset, long counterpart, Long offering) {
@@ -209,6 +218,24 @@ public class FinanceEngine {
         }
         writeRecord(r, asset, counterpart, offering);
         log("회계·헌금 연결", String.valueOf(id));
+    }
+
+    /** 사용자가 화면에서 확인한 기존 수입만 한 트랜잭션으로 헌금에 연결한다. */
+    public void linkBudgetOfferings(List<Long> ids) {
+        if (ids == null || ids.isEmpty())
+            throw new IllegalArgumentException("연결할 거래를 선택하세요.");
+        for (long id : new LinkedHashSet<>(ids)) {
+            var r = one(
+                    "SELECT R.*,K.OFFERING_TYPE_ID,K.ASSET_ID FROM FINANCIAL_RECORD R LEFT JOIN ACCT_LINK K ON K.RECORD_ID=R.ID WHERE R.ID=? AND R.CANCELLED=FALSE AND R.TYPE='INCOME' FOR UPDATE",
+                    id);
+            if (r.get("OFFERING_TYPE_ID") != null)
+                throw new IllegalArgumentException("이미 헌금에 연결된 거래입니다. 다시 조회하세요.");
+            var type = one(
+                    "SELECT T.ID FROM BUDGET B JOIN OFFERING_TYPE T ON T.NAME=B.NAME AND T.ACTIVE=TRUE WHERE B.ID=?",
+                    r.get("BUDGET_ID"));
+            classify(id, r.get("ASSET_ID") == null ? code("1100") : number(r.get("ASSET_ID")), code("4000"),
+                    number(type.get("ID")), null);
+        }
     }
 
     public void settings(String operation, Map<String, Object> p) {

@@ -706,6 +706,91 @@
         message(e);
       }
     }
+    function pendingOfferings() {
+      return (data.records || []).filter(
+        (r) =>
+          r.TYPE === "INCOME" &&
+          !r.OFFERING_TYPE_ID &&
+          r.DATE >= $("from").value &&
+          r.DATE <= $("to").value,
+      );
+    }
+    function offeringMatch(r) {
+      const budget = (data.budgets || []).find((b) => b.ID === r.BUDGET_ID);
+      return (data.types || []).find(
+        (t) => t.ACTIVE && t.NAME === budget?.NAME,
+      );
+    }
+    function reviewOfferings() {
+      const rows = pendingOfferings();
+      modal(
+        "헌금 연결 확인",
+        '<p>기존 수입이 헌금 종류에 연결되지 않으면 헌금 통계에 포함되지 않습니다. 아래 원본 거래를 확인하세요. 예산명이 헌금 종류와 정확히 같은 항목만 선택할 수 있습니다. 통장과 종류가 다르면 개별 상세에서 지정하세요.</p><form id="linkOfferings">' +
+          table(
+            ["선택", "일자", "예산", "내용", "금액", "상세"],
+            rows.map((r) => {
+              const match = offeringMatch(r),
+                year = (data.years || []).find(
+                  (y) => y.ID === r.FISCAL_YEAR_ID,
+                ),
+                asset = (data.accounts || []).find(
+                  (a) =>
+                    a.ID === r.ASSET_ID || (!r.ASSET_ID && a.CODE === "1100"),
+                );
+              return [
+                '<input type="checkbox" name="ids" value="' +
+                  r.ID +
+                  '" ' +
+                  (!match || year?.CLOSED ? "disabled" : "") +
+                  ">",
+                esc(r.DATE),
+                esc(
+                  (data.budgets || []).find((b) => b.ID === r.BUDGET_ID)?.NAME,
+                ),
+                esc(r.DESCRIPTION) +
+                  "<br><small>" +
+                  esc(
+                    match
+                      ? "연결 종류: " +
+                          match.NAME +
+                          " / 자산: " +
+                          (asset?.NAME || "보통예금")
+                      : "헌금 종류를 개별 지정하세요",
+                  ) +
+                  "</small>",
+                M(r.AMOUNT),
+                '<button type="button" data-record="' +
+                  r.ID +
+                  '">개별 확인</button>',
+              ];
+            }),
+          ) +
+          '<button class="primary">선택한 수입을 헌금에 연결</button></form>',
+      );
+      $("linkOfferings").onsubmit = async (e) => {
+        e.preventDefault();
+        const ids = new FormData(e.target).getAll("ids");
+        if (!ids.length) {
+          alert("연결할 항목을 선택하세요.");
+          return;
+        }
+        if (
+          !confirm(
+            "선택한 " +
+              ids.length +
+              "건을 표시된 헌금 종류로 연결할까요? 원본 수입을 중복 생성하지 않습니다.",
+          )
+        )
+          return;
+        try {
+          await api("/api/write", { operation: "linkOfferings", ids });
+          $("modal").close();
+          await load();
+        } catch (x) {
+          alert(x.message);
+        }
+      };
+    }
     function filteredGifts() {
       return gifts.filter(
         (g) =>
@@ -1366,6 +1451,15 @@
           '<div class="notice">현재 필터 헌금 합계 <b>' +
           M(total) +
           "</b> · 공동 헌금은 개인 배분이 확인될 때까지 미배분 그룹으로 표시합니다.</div>";
+        const pending = pendingOfferings();
+        if (pending.length)
+          h +=
+            '<div class="notice">이 기간에 헌금 종류가 지정되지 않은 수입이 ' +
+            pending.length +
+            "건 있습니다. 기존 수입/지출 관리나 가져오기로 입력한 항목은 연결 여부를 확인하세요. <button data-review-offerings>누락 헌금 연결 확인</button></div>";
+        if (!gs.length)
+          h +=
+            '<div class="notice">현재 기간·헌금자·종류에 맞는 헌금이 없습니다. <button data-reset-gift-filters>헌금자·종류 전체 보기</button> <button data-review-offerings>미연결 수입 확인</button></div>';
         h += chart(
           "월별 헌금",
           group(gs, (g) => g.DATE.slice(0, 7), giftAmount),
@@ -2085,6 +2179,17 @@
       }
       const b = e.target.closest("button");
       if (!b) return;
+      if (b.hasAttribute("data-review-offerings")) {
+        reviewOfferings();
+        return;
+      }
+      if (b.hasAttribute("data-reset-gift-filters")) {
+        $("person").value = "";
+        $("giftType").value = "";
+        await load();
+        return;
+      }
+
       try {
         if (b.dataset.nav) {
           page = b.dataset.nav;

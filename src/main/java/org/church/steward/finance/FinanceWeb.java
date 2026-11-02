@@ -339,6 +339,8 @@ public class FinanceWeb {
             String op = String.valueOf(b.get("operation"));
             switch (op) {
             case "account", "offeringType" -> engine.settings(op, b);
+            case "linkOfferings" ->
+                engine.linkBudgetOfferings(((List<?>) b.get("ids")).stream().map(FinanceEngine::number).toList());
             case "classify" -> {
                 Map<Long, Long> allocation = new HashMap<>();
                 if (b.get("allocations") instanceof Map<?, ?> m)

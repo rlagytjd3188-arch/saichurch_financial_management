@@ -62,6 +62,29 @@ const fs = require("node:fs");
     );
     await page.getByRole("button", { name: "헌금 관리", exact: true }).click();
     assert.match(await page.locator("#content").textContent(), /100,000/);
+    const giftTypes = await page
+      .locator("#giftType option")
+      .evaluateAll((nodes) =>
+        nodes.map((n) => ({ value: n.value, label: n.textContent })),
+      );
+    await page
+      .locator("#giftType")
+      .selectOption(giftTypes.find((t) => t.label === "약정헌금").value);
+    assert.match(await page.locator("#content").textContent(), /100,000/);
+    await page
+      .locator("#giftType")
+      .selectOption(giftTypes.find((t) => t.label === "감사헌금").value);
+    assert.match(
+      await page.locator("#content").textContent(),
+      /현재 기간·헌금자·종류에 맞는 헌금이 없습니다/,
+    );
+    await page.locator("[data-reset-gift-filters]").click();
+    await page.waitForFunction(
+      () =>
+        document.querySelector("#giftType").value === "" &&
+        document.querySelector("#content").textContent.includes("100,000"),
+    );
+
     await page.locator("[data-new-gift]").click();
     const form = page.locator("#editForm");
     await form.locator("[name=year]").selectOption("9000");

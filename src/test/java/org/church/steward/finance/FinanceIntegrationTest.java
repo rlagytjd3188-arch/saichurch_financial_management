@@ -117,6 +117,82 @@ class FinanceIntegrationTest {
     org.springframework.security.crypto.password.PasswordEncoder encoder;
     private final LocalDate date = LocalDate.of(2044, 1, 5);
 
+    @Autowired
+    org.church.steward.domain.datatransfer.service.RecordImportService recordImporter;
+    @Autowired
+    org.church.steward.domain.activitylog.service.ActivityLogService activity;
+
+    @Test
+    @DisplayName("실제 XLSX·CSV 가져오기로 등록한 약정헌금이 별도 입력 없이 통계에 반영된다")
+    void spreadsheetImportsAppearInOfferingStatistics(@org.junit.jupiter.api.io.TempDir java.nio.file.Path temp) {
+        jdbc.update("UPDATE BUDGET SET NAME='약정헌금' WHERE ID=9001");
+        for (var format : org.church.steward.infrastructure.spreadsheet.SpreadsheetFormat.values()) {
+            var file = temp.resolve("헌금." + format.getExtension());
+            new org.church.steward.infrastructure.spreadsheet.SpreadsheetWriter().write(file, format,
+                    new org.church.steward.infrastructure.spreadsheet.SpreadsheetTable("내역",
+                            List.of("일자", "예산", "금액", "헌금자"),
+                            List.of(List.of(date.plusDays(format.ordinal()), "약정헌금", 100000L, "검증 개인 이름"))),
+                    null);
+            var sheet = new org.church.steward.infrastructure.spreadsheet.SpreadsheetReader().read(file, null, null,
+                    java.nio.charset.StandardCharsets.UTF_8);
+            var request = org.church.steward.domain.datatransfer.dto.RecordImportRequestDto.builder()
+                    .rows(sheet.rows().subList(1, sheet.rows().size())).firstRowNumber(2)
+                    .fixedType(FinancialRecordType.INCOME).dateColumn(0).budgetPathColumn(1).amountColumn(2)
+                    .contactColumn(3).build();
+            var analysis = recordImporter.analyze(9000L, request);
+            var keys = analysis.getItems().stream()
+                    .filter(org.church.steward.domain.datatransfer.dto.RecordImportItemDto::isSelectable)
+                    .map(org.church.steward.domain.datatransfer.dto.RecordImportItemDto::getKey)
+                    .collect(java.util.stream.Collectors.toSet());
+            assertThat(keys).hasSize(1);
+            recordImporter.importRecords(9000L, request, keys, analysis.getSignature(), activity.getLatestLogId(),
+                    file.getFileName().toString());
+        }
+        assertThat(engine.donations(date, date.plusDays(1))).hasSize(2);
+        assertThat(engine.report(date, date.plusDays(1)).get("offeringsTotal")).isEqualTo("200000");
+        assertThat(engine.report(date, date.plusDays(1)).get("income")).isEqualTo("200000");
+        balanced();
+    }
+
+    @Test
+    @DisplayName("기존 데스크톱 입력도 정확히 일치하는 헌금 예산이면 통계에 자동 연결된다")
+    void nativeOfferingBudgetAppearsInStatistics() {
+        jdbc.update("UPDATE BUDGET SET NAME='약정헌금' WHERE ID=9001");
+        record(true, 100000);
+        assertThat(engine.donations(date, date)).hasSize(1);
+        assertThat(engine.donations(date, date).getFirst().get("TYPE_NAME")).isEqualTo("약정헌금");
+        assertThat(engine.report(date, date).get("income")).isEqualTo("100000");
+        assertThat(engine.report(date, date).get("offeringsTotal")).isEqualTo("100000");
+        balanced();
+    }
+
+    @Test
+    @DisplayName("기존 미연결 수입은 확인 연결 시 중복 없이 헌금 통계에 반영된다")
+    void confirmedExistingOfferingsAreLinkedOnce() {
+        long id = record(true, 100000);
+        assertThat(engine.donations(date, date)).isEmpty();
+        jdbc.update("UPDATE BUDGET SET NAME='약정헌금' WHERE ID=9001");
+        engine.linkBudgetOfferings(List.of(id));
+        assertThat(engine.donations(date, date)).hasSize(1);
+        assertThat(engine.report(date, date).get("income")).isEqualTo("100000");
+        assertThat(engine.report(date, date).get("offeringsTotal")).isEqualTo("100000");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM FINANCIAL_RECORD", Integer.class)).isEqualTo(1);
+        assertThatThrownBy(() -> engine.linkBudgetOfferings(List.of(id))).isInstanceOf(IllegalArgumentException.class);
+        balanced();
+    }
+
+    @Test
+    @DisplayName("미연결 수입 일괄 확인은 잘못된 항목이 하나라도 있으면 전부 롤백한다")
+    void batchOfferingLinkIsAtomic() {
+        long income = record(true, 100000), expense = record(false, 50000);
+        jdbc.update("UPDATE BUDGET SET NAME='약정헌금' WHERE ID=9001");
+        assertThatThrownBy(() -> engine.linkBudgetOfferings(List.of(income, expense)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(engine.donations(date, date)).isEmpty();
+        assertThat(engine.report(date, date).get("offeringsTotal")).isEqualTo("0");
+        balanced();
+    }
+
     @Test
     @DisplayName("4자 로그인·권한·외부 집계·공개 OFF·로그아웃을 실제 HTTP로 검증한다")
     void httpBoundary() throws Exception {
