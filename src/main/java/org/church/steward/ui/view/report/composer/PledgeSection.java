@@ -7,7 +7,7 @@ import org.church.steward.ui.view.report.layout.*;
 import org.church.steward.ui.view.report.layout.ReportTable.Column;
 
 final class PledgeSection {
-    private static final Color ACTUAL = Color.decode("#8B5CB8"), TARGET = Color.decode("#627D98");
+    private static final Color ACTUAL = Color.decode("#A8202B"), TARGET = Color.decode("#627D98");
 
     static void render(ReportCanvas canvas, PledgeService.Summary summary) {
         if (summary == null || summary.target() == 0 && summary.actual() == 0)
@@ -46,7 +46,7 @@ final class PledgeSection {
                 canvas.getLeft());
         double top = canvas.getY(), left = canvas.getLeft() + 42, right = canvas.getRight(),
                 bottom = top + height - lh - 6, plot = top + lh + 8;
-        canvas.text(percent ? "목표 100% (점선) / 실제 달성률 (보라색 실선)" : "약정 목표(100%, 점선) / 실제 납부액(보라색 실선)", font,
+        canvas.text(percent ? "목표 100% (점선) / 실제 달성률 (빨간색 실선)" : "약정 목표(100%, 점선) / 실제 납부액(빨간색 실선)", font,
                 ReportAlign.LEFT, left, top + ReportText.ascent(font));
         double max = percent ? 120 : 1;
         for (var m : s.monthly())

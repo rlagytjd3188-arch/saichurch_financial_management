@@ -12,7 +12,7 @@ public final class UIColors {
     }
 
     // Primary Button
-    public static final Color PRIMARY_BACKGROUND = new Color(52, 152, 219); // #3498DB
+    public static final Color PRIMARY_BACKGROUND = new Color(217, 71, 71); // #D94747
     public static final Color PRIMARY_BACKGROUND_HOVER = new Color(41, 128, 185); // #2980B9
     public static final Color PRIMARY_TEXT = Color.WHITE; // #FFFFFF
 
@@ -41,7 +41,7 @@ public final class UIColors {
     public static final Color TEXT_MAIN = new Color(44, 62, 80); // #2C3E50
     public static final Color TEXT_SUB = new Color(127, 140, 141); // #7F8C8D
     public static final Color TEXT_LIGHT = new Color(236, 240, 241); // #ECF0F1
-    public static final Color TEXT_HIGHLIGHT = new Color(52, 152, 219); // #3498DB
+    public static final Color TEXT_HIGHLIGHT = new Color(217, 71, 71); // #D94747
 
     // Chip
     public static final Color CHIP_BACKGROUND = new Color(214, 234, 248); // #D6EAF8
@@ -51,8 +51,8 @@ public final class UIColors {
     public static final Color CARD_BACKGROUND = Color.WHITE; // #FFFFFF
 
     // Income/Expense
-    public static final Color INCOME = new Color(52, 152, 219); // #3498DB
-    public static final Color EXPENSE = new Color(231, 76, 60); // #E74C3C
+    public static final Color INCOME = new Color(217, 71, 71); // #D94747
+    public static final Color EXPENSE = new Color(40, 120, 181); // #2878B5
     public static final Color BALANCE = new Color(39, 174, 96); // #27AE60
 
     // Chart
@@ -69,9 +69,9 @@ public final class UIColors {
     public static final Color REPORT_LINE = new Color(67, 104, 143); // #43688F
     public static final Color REPORT_GRID = new Color(207, 220, 233); // #CFDCE9
     public static final Color REPORT_FILL = new Color(230, 241, 252); // #E6F1FC
-    public static final Color REPORT_BAR = new Color(37, 132, 195); // #2584C3
-    public static final Color REPORT_EXPENSE = new Color(218, 112, 57);
-    public static final Color REPORT_OFFERING = new Color(43, 143, 105);
+    public static final Color REPORT_BAR = new Color(217, 71, 71); // #D94747
+    public static final Color REPORT_EXPENSE = new Color(40, 120, 181);
+    public static final Color REPORT_OFFERING = new Color(217, 71, 71);
     public static final Color REPORT_PREVIEW_BACKGROUND = new Color(200, 204, 208); // #C8CCD0
 
     // Error/Warning

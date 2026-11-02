@@ -6,7 +6,7 @@ import java.security.MessageDigest;
 import java.util.*;
 import org.church.steward.domain.budget.entity.Budget;
 
-/** 금액과 무관한 고정 색상. 일반 예산은 1차, 헌금수입만 2차까지 구분한다. */
+/** 수입은 빨간 계열, 지출은 파란 기본색. 약정·주정·선교·감사헌금만 빨간색 안에서 구분한다. */
 public record ChartCategory(String key, String label, String type, String color) {
     public static boolean offeringRoot(String name) {
         return Set.of("헌금", "헌금수입", "헌금수익").contains(name.replaceAll("\\s", ""));
@@ -35,21 +35,12 @@ public record ChartCategory(String key, String label, String type, String color)
     public static ChartCategory named(String type, String label) {
         String identity = type + ":" + label;
         String leaf = label.contains(" / ") ? label.substring(label.lastIndexOf(" / ") + 3) : label;
-        Map<String, String> known = Map.ofEntries(
-                Map.entry("주정헌금", "#2878B5"), Map.entry("약정헌금", "#8B5CB8"),
-                Map.entry("감사헌금", "#269B83"), Map.entry("선교헌금", "#CE8A20"),
-                Map.entry("절기헌금", "#D85E88"), Map.entry("특별헌금", "#4B9AB4"),
-                Map.entry("기타헌금", "#7F8A56"), Map.entry("기타수입", "#627D98"),
-                Map.entry("사역비", "#CF693F"), Map.entry("예배비", "#B18A28"),
-                Map.entry("선교비", "#418A69"), Map.entry("교육비", "#6576B8"),
-                Map.entry("관리비", "#A65C92"), Map.entry("인건비", "#A14F4F"), Map.entry("기타비용", "#7B7970"));
+        Map<String, String> offerings = Map.of("약정헌금", "#A8202B", "주정헌금", "#E04545", "선교헌금", "#F06B6B", "감사헌금",
+                "#C84468");
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8));
-            String color = known.get(leaf);
-            if (color == null) {
-                float hue = (((hash[0] & 255) << 8) | (hash[1] & 255)) / 65536f;
-                color = String.format("#%06X", Color.HSBtoRGB(hue, .65f, .72f) & 0xffffff);
-            }
+            String color = type.equals("EXPENSE") ? "#2878B5"
+                    : type.equals("INCOME") ? offerings.getOrDefault(leaf, "#D94747") : "#627D98";
             return new ChartCategory("cat_" + HexFormat.of().formatHex(hash, 0, 10), label, type, color);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

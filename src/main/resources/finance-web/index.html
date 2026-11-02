@@ -844,7 +844,7 @@
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([label, n]) => ({ label, value: String(n) }));
     }
-    const chartPalette = ["#2878B5", "#CF693F", "#269B83", "#8B5CB8", "#CE8A20", "#627D98"];
+    const chartPalette = ["#D94747", "#2878B5", "#A8202B", "#E85B5B", "#C84468", "#627D98"];
     function flowChart(title, source, catalog, onClick, initial = "bar", pledges = null, extras = []) {
       const cs = catalog || [];
       const keys = cs.length ? cs.map(c => [c.key, c.label, c.color, c.type]) : [["income", "수입", chartPalette[0], "INCOME"], ["expense", "지출", chartPalette[1], "EXPENSE"]];
@@ -963,8 +963,8 @@
       if(BigInt(p.target || 0)===0n && BigInt(p.actual || 0)===0n)return '<div class="notice">월 약정액은 헌금자 → 월 약정 설정에서 등록하세요.</div>';
       const rows=(p.monthly || []).map(m=>({...m,target:String(m.target),actual:String(m.actual)}));
       return '<section class="card"><h2>전체 약정헌금 달성 현황</h2><p>약정 100% 목표 <b>'+M(p.target)+'</b> · 실제 납부 <b>'+M(p.actual)+'</b> · 달성률 <b>'+percentage(p.actual,p.target)+'</b></p><p class="muted">'+esc(p.from)+' ~ '+esc(p.to)+' · 목표는 월 약정 전액, 납부액은 월초부터 기준일까지입니다. 미배분 '+M(p.unallocated || 0)+'은 전체에만 포함됩니다.</p></section>'+
-        chart('약정헌금 목표·납부액',rows,[["target","약정 목표(100%)","#627D98","LINE"],["actual","실제 약정헌금 납부","#8B5CB8","ACTUAL"]],null,"line")+
-        chart('약정헌금 달성률 · 목표 100%와 실제',rows,[["full","약정 목표 100%","#627D98","LINE"],["rate","실제 달성률","#8B5CB8","RATE"]],null,"line",{percent:true});
+        chart('약정헌금 목표·납부액',rows,[["target","약정 목표(100%)","#627D98","LINE"],["actual","실제 약정헌금 납부","#A8202B","ACTUAL"]],null,"line")+
+        chart('약정헌금 달성률 · 목표 100%와 실제',rows,[["full","약정 목표 100%","#627D98","LINE"],["rate","실제 달성률","#A8202B","RATE"]],null,"line",{percent:true});
     }
     function pledgePerson(id) {return (pledgeStats.people || []).find(p=>p.id===id) || {};}
     function monthlyPledge(id) {
@@ -977,8 +977,8 @@
     function pledgeForm(contact,p={}) {
       const name=(data.contacts || []).find(c=>c.ID===contact)?.NAME || '';
       const history=(data.pledgeCommitments || []).filter(x=>x.CONTACT_ID===contact);
-      form(esc(name)+' · 월 약정 설정','pledge',field('매월 약정액 (원)','amount',p.MONTHLY_AMOUNT || '', 'number')+field('시작월','start',p.START_MONTH?.slice(0,7) || $("from").value.slice(0,7),'month')+field('종료월 (계속 약정하면 비움)','end',p.END_MONTH?.slice(0,7) || '', 'month')+'<p class="full muted">월 약정액은 수입으로 기록되지 않습니다. 금액이 바뀌면 기존 종료월을 지정한 뒤 새 시작월로 추가하세요. 종료월도 약정에 포함됩니다.</p>',{contact,...(p.ID?{id:p.ID}:{})});
-      $("editForm [name=amount]").min='1';$("editForm [name=start]").required=true;$("editForm [name=end]").required=false;
+      form(esc(name)+' · 월 약정 설정','pledge',field('매월 약정액 (원)','amount',p.MONTHLY_AMOUNT || '', 'number')+field('시작월','start',p.START_MONTH?.slice(0,7) || $("from").value.slice(0,7),'month')+field('종료월 (선택 · 계속 약정하면 비움)','end',p.END_MONTH?.slice(0,7) || '', 'month',false)+'<p class="full muted">월 약정액은 수입으로 기록되지 않습니다. 금액이 바뀌면 기존 종료월을 지정한 뒤 새 시작월로 추가하세요. 종료월도 약정에 포함됩니다.</p>',{contact,...(p.ID?{id:p.ID}:{})});
+      $("editForm").querySelector("[name=amount]").min='1';$("editForm").querySelector("[name=start]").required=true;$("editForm").querySelector("[name=end]").required=false;
       $("editForm").insertAdjacentHTML('afterend','<h3>기존 약정 이력</h3>'+table(["시작월","종료월","월 약정액","수정"],history.map(x=>[esc(x.START_MONTH.slice(0,7)),esc(x.END_MONTH?.slice(0,7)||'계속'),M(x.MONTHLY_AMOUNT),'<button data-edit-pledge="'+x.ID+'">수정</button><button data-cancel-pledge="'+x.ID+'">입력 취소</button>'])));
     }
     function render() {
@@ -1416,7 +1416,7 @@
             "</option>",
         )
         .join("");
-    const field = (label, name, value = "", type = "text") =>
+    const field = (label, name, value = "", type = "text", required = null) =>
       "<label>" +
       label +
       '<input name="' +
@@ -1426,9 +1426,7 @@
       '" type="' +
       type +
       '" ' +
-      (name === "memo" || name === "donorName" || name.startsWith("allocation-")
-        ? ""
-        : "required") +
+      ((required ?? !(name === "memo" || name === "donorName" || name.startsWith("allocation-"))) ? "required" : "") +
       "></label>";
     const select = (label, name, options) =>
       "<label>" +
@@ -1450,6 +1448,7 @@
         try {
           const fd = new FormData(e.target),
             body = { operation, ...hidden, ...Object.fromEntries(fd) };
+          if (operation === "pledge" && !String(body.end || "").trim()) delete body.end;
           if (fd.has("contacts")) body.contacts = fd.getAll("contacts");
           if (operation === "record" && String(body.donorName || "").trim())
             delete body.contacts;

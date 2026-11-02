@@ -94,7 +94,9 @@ final class BudgetStatusSection {
             table.addRow(RowStyle.NORMAL, 0,
                     ReportTable.text(row.getName()),
                     ReportTable.bar(toRatio(row.getExecutionRate()),
-                            row.getChartCategory() == null ? org.church.steward.ui.util.UIColors.REPORT_BAR
+                            row.getChartCategory() == null
+                                    ? (income ? org.church.steward.ui.util.UIColors.REPORT_BAR
+                                            : org.church.steward.ui.util.UIColors.REPORT_EXPENSE)
                                     : row.getChartCategory().awtColor()),
                     ReportTable.text(ReportFormats.amount(row.getActualAmount())),
                     ReportTable.text(ReportFormats.amount(row.getBudgetedAmount())),
@@ -104,7 +106,9 @@ final class BudgetStatusSection {
         Double totalRate = totalBudgeted > 0 ? totalActual * 100.0 / totalBudgeted : null;
         table.addRow(RowStyle.TOTAL, 0,
                 ReportTable.text("합계"),
-                ReportTable.bar(toRatio(totalRate)),
+                ReportTable.bar(toRatio(totalRate),
+                        income ? org.church.steward.ui.util.UIColors.REPORT_BAR
+                                : org.church.steward.ui.util.UIColors.REPORT_EXPENSE),
                 ReportTable.text(ReportFormats.amount(totalActual)),
                 ReportTable.text(ReportFormats.amount(totalBudgeted)),
                 ReportTable.text(ReportFormats.rate(totalRate)));

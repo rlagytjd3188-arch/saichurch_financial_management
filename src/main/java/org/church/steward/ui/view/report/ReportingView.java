@@ -90,6 +90,9 @@ public class ReportingView extends JPanel implements MenuActivatable {
             7);
     private final javax.swing.JLabel monthLabel = new javax.swing.JLabel("조회 월 (YYYY-MM)");
     private final JPanel periodPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+    private final StyledComboBox<WeeklySettlementReportComposer.OutputPart> partCombo = new StyledComboBox<>(
+            WeeklySettlementReportComposer.OutputPart.values(), ComponentSize.MEDIUM);
+    private final javax.swing.JLabel partLabel = new javax.swing.JLabel("출력 범위");
     private final WeekSelectorPanel weekSelector = new WeekSelectorPanel(this::load);
     private final PrimaryButton searchButton = new PrimaryButton("조회", ComponentSize.MEDIUM);
     private final SecondaryButton pdfButton = new SecondaryButton("PDF 저장", ComponentSize.MEDIUM);
@@ -123,10 +126,11 @@ public class ReportingView extends JPanel implements MenuActivatable {
      * @param fits      한 페이지에 담겼는지 여부. 한 페이지에 맞춤일 때만 의미가 있다.
      */
     private record LoadedReport(ReportType type, Long fiscalYearId, LocalDate startDate, LocalDate endDate,
-            Function<ReportStyle, ReportDocument> composer, ReportDocument document, boolean fits) {
+            WeeklySettlementReportComposer.OutputPart part, Function<ReportStyle, ReportDocument> composer,
+            ReportDocument document, boolean fits) {
 
         LoadedReport withComposed(Composed composed) {
-            return new LoadedReport(type, fiscalYearId, startDate, endDate, composer, composed.document(),
+            return new LoadedReport(type, fiscalYearId, startDate, endDate, part, composer, composed.document(),
                     composed.fits());
         }
     }
@@ -162,6 +166,7 @@ public class ReportingView extends JPanel implements MenuActivatable {
             updateWeekVisibility();
             load();
         });
+        partCombo.addActionListener(_ -> load());
         searchButton.addActionListener(_ -> load());
         pdfButton.addActionListener(_ -> savePdf());
         printButton.addActionListener(_ -> print());
@@ -222,6 +227,9 @@ public class ReportingView extends JPanel implements MenuActivatable {
         periodPanel.add(weekSelector);
         periodPanel.add(monthLabel);
         periodPanel.add(monthField);
+        periodPanel.add(partLabel);
+        periodPanel.add(partCombo);
+        partCombo.setToolTipText("별지를 선택하면 해당 내역만 인쇄·PDF 저장합니다. 전체 출력은 별지 페이지를 유지합니다.");
         monthField.setToolTipText("조회 월: YYYY-MM (예: 2026-08)");
         monthField.addActionListener(_ -> load());
         toolbar.add(periodPanel, BorderLayout.CENTER);
@@ -278,16 +286,23 @@ public class ReportingView extends JPanel implements MenuActivatable {
         final LocalDate startDate = month != null ? monthStart : type.isWeekly() ? weekSelector.getStartDate() : null;
         final LocalDate endDate = month != null ? monthEnd : type.isWeekly() ? weekSelector.getEndDate() : null;
         final ReportSettingDto cachedSetting = settings.get(type);
+        final WeeklySettlementReportComposer.OutputPart part = (type == ReportType.WEEKLY_SETTLEMENT
+                || type == ReportType.MONTHLY_SETTLEMENT)
+                        ? (WeeklySettlementReportComposer.OutputPart) partCombo.getSelectedItem()
+                        : null;
 
         // 글자 폭을 재서 페이지를 나누는 배치 작업도 화면이 멈추지 않도록 조회와 함께 백그라운드에서 한다.
         AsyncTask.run(viewer,
                 () -> {
                     ReportSettingDto setting = cachedSetting != null ? cachedSetting
                             : reportController.getReportSetting(type);
-                    Function<ReportStyle, ReportDocument> composer = fetch(type, fiscalYearId, startDate, endDate);
-                    Composed composed = compose(composer, setting);
-                    return new LoadResult(setting, new LoadedReport(type, fiscalYearId, startDate, endDate, composer,
-                            composed.document(), composed.fits()));
+                    Function<ReportStyle, ReportDocument> composer = fetch(type, fiscalYearId, startDate, endDate,
+                            part);
+                    Composed composed = compose(composer, setting,
+                            part != WeeklySettlementReportComposer.OutputPart.ALL);
+                    return new LoadResult(setting,
+                            new LoadedReport(type, fiscalYearId, startDate, endDate, part, composer,
+                                    composed.document(), composed.fits()));
                 },
                 result -> {
                     if (sequence != loadSequence) {
@@ -321,12 +336,13 @@ public class ReportingView extends JPanel implements MenuActivatable {
      * @param endDate   주간 보고서의 종료일. 그 밖의 보고서에서는 쓰지 않는다.
      */
     private Function<ReportStyle, ReportDocument> fetch(ReportType type, Long fiscalYearId, LocalDate startDate,
-            LocalDate endDate) {
+            LocalDate endDate, WeeklySettlementReportComposer.OutputPart part) {
         return switch (type) {
         case WEEKLY_SETTLEMENT, MONTHLY_SETTLEMENT -> {
             WeeklySettlementReportDto report = reportController.getWeeklySettlementReport(fiscalYearId, startDate,
                     endDate);
-            yield style -> WeeklySettlementReportComposer.compose(report, style, type == ReportType.MONTHLY_SETTLEMENT);
+            yield style -> WeeklySettlementReportComposer.compose(report, style, type == ReportType.MONTHLY_SETTLEMENT,
+                    part);
         }
         case INCOME_BUDGET_PLAN, EXPENSE_BUDGET_PLAN -> {
             BudgetType budgetType = type == ReportType.INCOME_BUDGET_PLAN ? BudgetType.INCOME : BudgetType.EXPENSE;
@@ -351,8 +367,9 @@ public class ReportingView extends JPanel implements MenuActivatable {
      * 때까지 줄인다 ({@link ReportAutoFitter}). 꺼져 있으면 저장된 서식을 쓰되, 글자 크기는 가장 작은 글자가 허용
      * 범위를 벗어나지 않게 맞춘다.
      */
-    private static Composed compose(Function<ReportStyle, ReportDocument> composer, ReportSettingDto setting) {
-        if (setting.isAutoFit()) {
+    private static Composed compose(Function<ReportStyle, ReportDocument> composer, ReportSettingDto setting,
+            boolean allowAutoFit) {
+        if (setting.isAutoFit() && allowAutoFit) {
             ReportAutoFitter.Result result = ReportAutoFitter.fit(composer, setting.getFontFamily());
             return new Composed(result.document(), result.fits());
         }
@@ -382,7 +399,8 @@ public class ReportingView extends JPanel implements MenuActivatable {
         final long sequence = ++composeSequence;
 
         AsyncTask.run(viewer,
-                () -> compose(current.composer(), setting),
+                () -> compose(current.composer(), setting,
+                        current.part() != WeeklySettlementReportComposer.OutputPart.ALL),
                 composed -> {
                     if (loadSnapshot != loadSequence || sequence != composeSequence) {
                         return;
@@ -531,6 +549,8 @@ public class ReportingView extends JPanel implements MenuActivatable {
     private void updateWeekVisibility() {
         ReportType type = (ReportType) typeCombo.getSelectedItem();
         weekSelector.setVisible(type != null && type.isWeekly());
+        partCombo.setVisible(type == ReportType.WEEKLY_SETTLEMENT || type == ReportType.MONTHLY_SETTLEMENT);
+        partLabel.setVisible(partCombo.isVisible());
         monthField.setVisible(type == ReportType.MONTHLY_SETTLEMENT);
         monthLabel.setVisible(type == ReportType.MONTHLY_SETTLEMENT);
         revalidate();

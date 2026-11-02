@@ -50,28 +50,58 @@ public final class WeeklySettlementReportComposer {
         return compose(report, style, false);
     }
 
+    public enum OutputPart {
+        ALL("전체 (별지 포함)"), SUMMARY("요약·그래프만"), INCOME("수입 내역 별지"), EXPENSE("지출 내역 별지");
+
+        private final String label;
+
+        OutputPart(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     public static ReportDocument compose(WeeklySettlementReportDto report, ReportStyle style, boolean monthly) {
+        return compose(report, style, monthly, OutputPart.ALL);
+    }
+
+    public static ReportDocument compose(WeeklySettlementReportDto report, ReportStyle style, boolean monthly,
+            OutputPart part) {
         String title = monthly ? "월간 회계 결산 보고서" : TITLE;
-        // 파일 이름으로도 쓰이므로 어느 주의 보고서인지 알 수 있게 회계 연도와 기간을 넣는다.
         String documentTitle = String.format("%s %s (%s ~ %s)", report.getFiscalYearName(), title,
                 report.getStartDate(), report.getEndDate());
-
+        if (part != OutputPart.ALL)
+            documentTitle += " - " + part;
         ReportCanvas canvas = new ReportCanvas(documentTitle, style);
-        drawHeader(canvas, report, title);
-        canvas.moveDown(HEADER_GAP);
-        ReportStyles.drawUnit(canvas, ReportFonts.SIZE_SMALL);
-        drawOverview(canvas, report, monthly);
-        canvas.moveDown(SECTION_SPACING);
-
-        PeriodTrendSection.render(canvas, monthly ? "월간" : "주간", report.getPeriodTrend());
-        PledgeSection.render(canvas, report.getPledges());
-        String statusSuffix = String.format(" (%s까지 누계)", report.getEndDate()
-                .format(SHORT_DATE_FORMAT));
-        BudgetStatusSection.render(canvas, report.getIncomeStatus(), report.getExpenseStatus(), STATUS_SIZE,
-                statusSuffix);
-        canvas.moveDown(SECTION_SPACING);
-
-        new WeeklyRecordSection(style).render(canvas, report.getIncomeRecords(), report.getExpenseRecords());
+        if (part == OutputPart.ALL || part == OutputPart.SUMMARY) {
+            drawHeader(canvas, report, title);
+            canvas.moveDown(HEADER_GAP);
+            ReportStyles.drawUnit(canvas, ReportFonts.SIZE_SMALL);
+            drawOverview(canvas, report, monthly);
+            canvas.moveDown(SECTION_SPACING);
+            PeriodTrendSection.render(canvas, monthly ? "월간" : "주간", report.getPeriodTrend());
+            PledgeSection.render(canvas, report.getPledges());
+            String statusSuffix = String.format(" (%s까지 누계)", report.getEndDate().format(SHORT_DATE_FORMAT));
+            BudgetStatusSection.render(canvas, report.getIncomeStatus(), report.getExpenseStatus(), STATUS_SIZE,
+                    statusSuffix);
+        }
+        var annex = new WeeklyRecordSection(style);
+        String period = report.getFiscalYearName() + " · " + report.getStartDate() + " ~ " + report.getEndDate()
+                + " · 단위: 원";
+        if (part == OutputPart.ALL || part == OutputPart.INCOME) {
+            if (part == OutputPart.ALL)
+                canvas.newPage();
+            annex.renderAnnex(canvas, (monthly ? "월간" : "주간") + " 수입 내역 (별지)", period, report.getIncomeRecords());
+        }
+        if (part == OutputPart.ALL || part == OutputPart.EXPENSE) {
+            if (part == OutputPart.ALL)
+                canvas.newPage();
+            annex.renderAnnex(canvas, (monthly ? "월간" : "주간") + " 지출 내역 (별지)", period, report.getExpenseRecords());
+        }
         return canvas.finish();
     }
 

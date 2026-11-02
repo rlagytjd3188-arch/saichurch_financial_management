@@ -102,6 +102,33 @@ class WeeklySettlementReportComposerTest {
     @Nested
     @DisplayName("compose 테스트")
     class ComposeTest {
+        @Test
+        void annexesHaveSeparatePagesAndCanBePrintedIndependently() {
+            var report = report(List.of(group("헌금", List.of(record("수입 이름", "수입 거래", "제외할 수입 비고")))),
+                    List.of(group("관리비", List.of(record("지출 이름", "지출 거래", "제외할 지출 비고")))));
+            for (boolean monthly : List.of(false, true)) {
+                var all = WeeklySettlementReportComposer.compose(report, ReportStyle.DEFAULT, monthly);
+                assertThat(all.getPageCount()).isEqualTo(3);
+                var pages = new ArrayList<List<String>>();
+                for (int p = 0; p < all.getPageCount(); p++)
+                    pages.add(all.getElements(p).stream().filter(ReportElement.Text.class::isInstance)
+                            .map(ReportElement.Text.class::cast).map(ReportElement.Text::text).toList());
+                assertThat(pages.get(0)).doesNotContain("수입 거래", "지출 거래");
+                assertThat(pages.get(1)).contains("수입 거래", "이름").doesNotContain("지출 거래");
+                assertThat(pages.get(2)).contains("지출 거래", "이름").doesNotContain("수입 거래");
+                assertThat(textsOf(all)).doesNotContain("비고", "봉헌자", "수취인", "제외할 수입 비고", "제외할 지출 비고");
+                var income = WeeklySettlementReportComposer.compose(report, ReportStyle.DEFAULT, monthly,
+                        WeeklySettlementReportComposer.OutputPart.INCOME);
+                var expense = WeeklySettlementReportComposer.compose(report, ReportStyle.DEFAULT, monthly,
+                        WeeklySettlementReportComposer.OutputPart.EXPENSE);
+                var summary = WeeklySettlementReportComposer.compose(report, ReportStyle.DEFAULT, monthly,
+                        WeeklySettlementReportComposer.OutputPart.SUMMARY);
+                assertThat(income.getPageCount()).isEqualTo(1);
+                assertThat(textsOf(income)).contains("수입 거래", "수입 이름", "이름").doesNotContain("지출 거래");
+                assertThat(textsOf(expense)).contains("지출 거래", "지출 이름", "이름").doesNotContain("수입 거래");
+                assertThat(textsOf(summary)).doesNotContain("수입 거래", "지출 거래");
+            }
+        }
 
         @Test
         @DisplayName("파일 이름으로 쓸 제목에 회계 연도와 주간 범위를 넣는다")
@@ -131,8 +158,8 @@ class WeeklySettlementReportComposerTest {
         }
 
         @Test
-        @DisplayName("한 주에 수입 32건, 지출 20건 정도는 A4 한 장에 담는다")
-        void compose_TypicalWeek_FitsOnSinglePage() {
+        @DisplayName("요약·수입별지·지출별지는 각각 새 페이지에 담는다")
+        void compose_TypicalWeek_SeparatesSummaryAndAnnexes() {
             // Given
             WeeklySettlementReportDto report = report(groups(4, 8), groups(10, 2));
 
@@ -140,7 +167,7 @@ class WeeklySettlementReportComposerTest {
             ReportDocument document = WeeklySettlementReportComposer.compose(report, ReportStyle.DEFAULT);
 
             // Then
-            assertThat(document.getPageCount()).isEqualTo(1);
+            assertThat(document.getPageCount()).isEqualTo(3);
         }
 
         @Test
@@ -160,7 +187,7 @@ class WeeklySettlementReportComposerTest {
         @DisplayName("칸에 다 들어가지 않는 내용은 말줄임표로 줄이고 아랫줄에 전체 내용을 다시 적는다")
         void compose_CellOverflow_ClipsCellAndRepeatsFullTextBelow() {
             // Given
-            String longDescription = "교육관 냉난방기 교체 공사 잔금";
+            String longDescription = "교육관 냉난방기 교체 공사 잔금".repeat(5);
             WeeklySettlementReportDto report = report(List.of(),
                     List.of(group("관리비", List.of(record("OO설비", longDescription, "")))));
 
@@ -171,7 +198,8 @@ class WeeklySettlementReportComposerTest {
             List<String> texts = textsOf(document);
             assertThat(texts).anyMatch(text -> text.endsWith("…") && longDescription.startsWith(
                     text.substring(0, text.length() - 1)));
-            assertThat(texts).contains("내용: " + longDescription);
+            assertThat(String.join("", texts).replaceAll("\\s", "")).contains(longDescription.replaceAll("\\s", ""));
+            assertThat(texts).anyMatch(t -> t.startsWith("내용: "));
         }
 
         @Test

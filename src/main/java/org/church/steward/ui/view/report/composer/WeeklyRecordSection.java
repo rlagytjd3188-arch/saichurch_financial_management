@@ -15,16 +15,7 @@ import org.church.steward.ui.view.report.layout.ReportFonts;
 import org.church.steward.ui.view.report.layout.ReportStyle;
 import org.church.steward.ui.view.report.layout.ReportText;
 
-/**
- * 주간 회계 결산 보고서의 수입 내역과 지출 내역. "수입/지출 관리"의 "예산별 보기"처럼 왼쪽 단에 수입, 오른쪽 단에 지출을 놓고,
- * 예산 행 아래에 그 예산의 내역 행들을 둔다.
- * <p>
- * 한 장에 많이 담기 위해 글자를 작게 쓰고 내역은 한 줄에 한 건씩 적는다. 줄 높이는 서식의 행 간격을 따른다. 칸에 다 들어가지 않는
- * 내용은 말줄임표로 줄이되, 바로 아랫줄에 들여써서 단의 전체 폭으로 내용을 모두 적는다(필요하면 여러 줄). 줄어든 칸마다 따로 줄을
- * 차지하므로 어떤 내용도 잘린 채로 끝나지 않는다.
- * <p>
- * 두 단은 서로 독립적으로 아래로 흘러가며, 페이지 끝에 닿으면 각자 다음 페이지의 같은 단으로 넘어간다.
- */
+/** 수입·지출 별지. 각 내역을 본문 전체 폭으로 표시하고 다음 페이지에서도 제목·기간·머리글을 반복한다. */
 final class WeeklyRecordSection {
 
     private static final float FONT_SIZE = ReportFonts.SIZE_DETAIL;
@@ -35,9 +26,9 @@ final class WeeklyRecordSection {
     private static final double PADDING_X = 2;
     /** 줄어든 내용을 다시 적는 줄의 들여쓰기 */
     private static final double CONTINUATION_INDENT = 10;
-    /** 금액을 뺀 나머지 폭을 일자·관계자, 내용, 비고가 나눠 갖는 비율 */
-    private static final double NAME_RATIO = 0.45;
-    private static final double DESCRIPTION_RATIO = 0.30;
+    /** 금액을 뺀 나머지 폭을 일자·이름, 내용가 나눠 갖는 비율 */
+    private static final double NAME_RATIO = 0.40;
+    private static final double DESCRIPTION_RATIO = 0.60;
     /** 머리글의 글자 위아래 여백 */
     private static final double HEADER_PADDING = 1;
 
@@ -88,22 +79,15 @@ final class WeeklyRecordSection {
      * @param nameWidth    일자·관계자 열의 폭
      * @param descWidth    내용 열의 폭
      * @param amountWidth  금액 열의 폭
-     * @param contactLabel 관계자를 부르는 이름("봉헌자" 또는 "수취인")
+     * @param contactLabel 관계자를 부르는 이름("이름")
      */
-    private record Layout(double width, double nameWidth, double descWidth, double amountWidth,
-            String contactLabel) {
+    private record Layout(double width, double dateWidth, double nameWidth, double descWidth, double amountWidth,
+            String contactLabel, String title, String period) {
 
         double amountRight() {
-            return nameWidth + descWidth + amountWidth - PADDING_X;
+            return dateWidth + nameWidth + descWidth + amountWidth - PADDING_X;
         }
 
-        double remarksLeft() {
-            return nameWidth + descWidth + amountWidth;
-        }
-
-        double remarksWidth() {
-            return width - remarksLeft();
-        }
     }
 
     WeeklyRecordSection(ReportStyle style) {
@@ -115,30 +99,14 @@ final class WeeklyRecordSection {
     }
 
     /**
-     * 현재 위치부터 수입 내역과 지출 내역을 좌우 두 단으로 그리고, 더 길게 내려간 단의 아래로 이동한다.
+     * 현재 페이지에서 한 종류의 별지를 본문 전체 폭으로 그린다.
      */
-    void render(ReportCanvas canvas, List<ReportRecordGroupDto> incomeRecords,
-            List<ReportRecordGroupDto> expenseRecords) {
-        // 절 제목과 머리글만 페이지 끝에 남지 않도록, 내역이 몇 줄은 들어갈 공간이 없으면 다음 페이지에서 시작한다.
-        if (!canvas.fits(lineHeight * 6)) {
-            canvas.newPage();
-        }
-
-        double columnWidth = (canvas.getContentWidth() - BudgetStatusSection.COLUMN_GAP) / 2;
-        double expenseLeft = canvas.getLeft() + columnWidth + BudgetStatusSection.COLUMN_GAP;
-        int startPage = canvas.getPageIndex();
-        double startY = canvas.getY();
-
-        End incomeEnd = renderColumn(canvas, canvas.getLeft(), columnWidth, "수입 내역", "봉헌자", incomeRecords);
-        canvas.setPosition(startPage, startY);
-        End expenseEnd = renderColumn(canvas, expenseLeft, columnWidth, "지출 내역", "수취인", expenseRecords);
-
-        if (incomeEnd.isAfter(expenseEnd)) {
-            canvas.setPosition(incomeEnd.pageIndex(), incomeEnd.y());
-        }
+    void renderAnnex(ReportCanvas canvas, String title, String period, List<ReportRecordGroupDto> records) {
+        renderColumn(canvas, canvas.getLeft(), canvas.getContentWidth(), title, "이름", period, records);
     }
 
     private End renderColumn(ReportCanvas canvas, double left, double width, String title, String contactLabel,
+            String period,
             List<ReportRecordGroupDto> groups) {
         long total = 0;
         for (ReportRecordGroupDto group : groups) {
@@ -148,11 +116,11 @@ final class WeeklyRecordSection {
         // 금액 열은 가장 큰 금액(합계)이 들어갈 만큼만 잡고 나머지를 글자 열에 준다.
         double amountWidth = PADDING_X * 2 + Math.max(ReportText.width(ReportFormats.amount(total), bold),
                 ReportText.width("금액", bold));
-        double textWidth = width - amountWidth;
-        Layout layout = new Layout(width, textWidth * NAME_RATIO, textWidth * DESCRIPTION_RATIO, amountWidth,
-                contactLabel);
+        double dateWidth = PADDING_X * 2 + ReportText.width("[12/31]", bold);
+        double textWidth = width - amountWidth - dateWidth;
+        Layout layout = new Layout(width, dateWidth, textWidth * NAME_RATIO, textWidth * DESCRIPTION_RATIO, amountWidth,
+                contactLabel, title, period);
 
-        canvas.section(title, ReportFonts.SIZE_SECTION, left);
         drawHeader(canvas, left, layout);
 
         if (groups.isEmpty()) {
@@ -200,6 +168,9 @@ final class WeeklyRecordSection {
     }
 
     private void drawHeader(ReportCanvas canvas, double left, Layout layout) {
+        canvas.section(layout.title(), ReportFonts.SIZE_SECTION, left);
+        canvas.text(layout.period(), regular, ReportAlign.LEFT, left, canvas.getY() + baseline);
+        canvas.moveDown(lineHeight + 5);
         double top = canvas.getY();
         double height = lineHeight + HEADER_PADDING * 2;
         double right = left + layout.width();
@@ -209,13 +180,13 @@ final class WeeklyRecordSection {
         canvas.line(left, top, right, top, STRONG_LINE, UIColors.REPORT_LINE);
         canvas.line(left, top + height, right, top + height, HEADER_LINE, UIColors.REPORT_LINE);
 
-        canvas.text("일자 · " + layout.contactLabel(), bold, ReportAlign.CENTER, left + layout.nameWidth() / 2,
-                headerBaseline);
-        canvas.text("내용", bold, ReportAlign.CENTER, left + layout.nameWidth() + layout.descWidth() / 2,
+        canvas.text("일자", bold, ReportAlign.CENTER, left + layout.dateWidth() / 2, headerBaseline);
+        canvas.text("이름", bold, ReportAlign.CENTER, left + layout.dateWidth() + layout.nameWidth() / 2, headerBaseline);
+        canvas.text("내용", bold, ReportAlign.CENTER,
+                left + layout.dateWidth() + layout.nameWidth() + layout.descWidth() / 2,
                 headerBaseline);
         canvas.text("금액", bold, ReportAlign.CENTER,
-                left + layout.nameWidth() + layout.descWidth() + layout.amountWidth() / 2, headerBaseline);
-        canvas.text("비고", bold, ReportAlign.CENTER, left + layout.remarksLeft() + layout.remarksWidth() / 2,
+                left + layout.dateWidth() + layout.nameWidth() + layout.descWidth() + layout.amountWidth() / 2,
                 headerBaseline);
         canvas.moveDown(height);
     }
@@ -270,7 +241,8 @@ final class WeeklyRecordSection {
      */
     private List<RowLine> toBudgetLines(ReportRecordGroupDto group, Layout layout) {
         List<RowLine> continuations = new ArrayList<>();
-        String name = fitCell(group.getBudgetName(), bold, layout.nameWidth() + layout.descWidth(), "예산", layout,
+        String name = fitCell(group.getBudgetName(), bold, layout.dateWidth() + layout.nameWidth() + layout.descWidth(),
+                "예산", layout,
                 continuations);
 
         List<Fragment> fragments = new ArrayList<>();
@@ -285,8 +257,7 @@ final class WeeklyRecordSection {
     }
 
     /**
-     * 내역 행. "[10/4] 홍길동, 김철수 | 내용 | 금액 | 비고"를 한 줄에 적고, 줄어든 칸이 있으면 그 내용을 아랫줄들에 다시
-     * 적는다.
+     * 내역 행. "[10/4] 홍길동, 김철수 | 내용 | 금액"를 한 줄에 적고, 줄어든 칸이 있으면 그 내용을 아랫줄들에 다시 적는다.
      */
     private List<RowLine> toRecordLines(ReportRecordDto record, Layout layout) {
         List<RowLine> continuations = new ArrayList<>();
@@ -294,22 +265,22 @@ final class WeeklyRecordSection {
         String date = "[" + record.getDate()
                 .format(DATE_FORMAT) + "]";
         String names = String.join(", ", record.getContactNames());
-        String dateAndNames = names.isEmpty() ? date : date + " " + names;
+
         // 이 칸이 넘쳐서 줄어드는 것은 관계자 이름이므로 아랫줄에는 날짜 없이 이름만 다시 적는다.
-        String nameCell = fitCell(dateAndNames, regular, layout.nameWidth(), layout.contactLabel(), names, layout,
+        String nameCell = fitCell(names, regular, layout.nameWidth(), layout.contactLabel(), names, layout,
                 continuations);
         String description = fitCell(record.getDescription(), regular, layout.descWidth(), "내용", layout,
                 continuations);
-        String remarks = fitCell(record.getRemarks(), regular, layout.remarksWidth(), "비고", layout, continuations);
 
         List<Fragment> fragments = new ArrayList<>();
-        fragments.add(new Fragment(nameCell, regular, ReportAlign.LEFT, PADDING_X, UIColors.REPORT_TEXT));
-        fragments.add(new Fragment(description, regular, ReportAlign.LEFT, layout.nameWidth() + PADDING_X,
+        fragments.add(new Fragment(date, regular, ReportAlign.LEFT, PADDING_X, UIColors.REPORT_TEXT));
+        fragments.add(new Fragment(nameCell, regular, ReportAlign.LEFT, layout.dateWidth() + PADDING_X,
+                UIColors.REPORT_TEXT));
+        fragments.add(new Fragment(description, regular, ReportAlign.LEFT,
+                layout.dateWidth() + layout.nameWidth() + PADDING_X,
                 UIColors.REPORT_TEXT));
         fragments.add(new Fragment(ReportFormats.amount(record.getAmount()), regular, ReportAlign.RIGHT,
                 layout.amountRight(), UIColors.REPORT_TEXT));
-        fragments.add(new Fragment(remarks, regular, ReportAlign.LEFT, layout.remarksLeft() + PADDING_X,
-                UIColors.REPORT_TEXT));
 
         List<RowLine> lines = new ArrayList<>();
         lines.add(new RowLine(fragments, false));
