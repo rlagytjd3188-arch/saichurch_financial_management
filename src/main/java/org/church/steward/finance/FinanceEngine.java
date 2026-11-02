@@ -40,10 +40,17 @@ public class FinanceEngine {
                 budget);
         if (matches.size() == 1)
             return number(matches.getFirst().get("ID"));
-        var category = ledgerCharts.budgetCategories().get(budget);
-        if (category != null && category.label().startsWith("헌금수입 / ")) {
-            var types = query("SELECT ID FROM OFFERING_TYPE WHERE NAME=? AND ACTIVE=TRUE",
-                    category.label().substring("헌금수입 / ".length()));
+        var path = ledgerCharts.budgetPaths().get(budget);
+        String name = null;
+        if (path != null && !path.isEmpty()) {
+            String root = path.getFirst();
+            if (ChartCategory.offeringRoot(root))
+                name = path.size() > 1 ? path.get(1) : "미분류";
+            else if (DefaultBudgetCatalog.INCOME.contains(root) && !root.equals("기타수입"))
+                name = root;
+        }
+        if (name != null) {
+            var types = query("SELECT ID FROM OFFERING_TYPE WHERE NAME=? AND ACTIVE=TRUE", name);
             if (types.size() == 1)
                 return number(types.getFirst().get("ID"));
         }
@@ -406,7 +413,8 @@ public class FinanceEngine {
             offeringTotals.merge(c, amount, BigInteger::add);
             for (var row : monthly)
                 if (row.get("label").equals(gift.get("LABEL")))
-                    row.put("gift_" + c.key(), amount.toString());
+                    row.merge("gift_" + c.key(), amount.toString(),
+                            (a, b) -> new BigInteger(a).add(new BigInteger(b)).toString());
         }
         long review = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM FINANCIAL_RECORD R LEFT JOIN ACCT_LINK K ON K.RECORD_ID=R.ID WHERE R.CANCELLED=FALSE AND R.DATE<=? AND (K.STATUS IS NULL OR K.STATUS='REVIEW')",

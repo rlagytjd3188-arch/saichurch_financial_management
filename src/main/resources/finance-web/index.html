@@ -849,7 +849,7 @@
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([label, n]) => ({ label, value: String(n) }));
     }
-    const chartPalette = ["#D94747", "#2878B5", "#A8202B", "#E85B5B", "#C84468", "#627D98"];
+    const chartPalette = ["#7A7F87", "#2878B5", "#D73027", "#00876C", "#7B3294", "#E6AB02", "#F28E2B"];
     function flowChart(title, source, catalog, onClick, initial = "bar", pledges = null, extras = []) {
       const cs = catalog || [];
       const keys = cs.length ? cs.map(c => [c.key, c.label, c.color, c.type]) : [["income", "수입", chartPalette[0], "INCOME"], ["expense", "지출", chartPalette[1], "EXPENSE"]];
@@ -877,6 +877,7 @@
     }
     function chart(title, rows, keys = [["value", "금액"]], onClick = null, initial = "bar", config = {}) {
       keys = keys.map(([k,n,color,type],i) => [k,n,color || chartPalette[i % chartPalette.length],type || k]);
+      if (config.classified) keys = keys.filter(([k]) => rows.some(r => BigInt(r[k] || 0) !== 0n));
       const stock = keys.some(([k]) => ["assets","liabilities","netAssets"].includes(k));
       if (rows.length && rows.every(r => /^\d{4}-\d{2}$/.test(r.label))) {
         const grouped = new Map();
@@ -968,8 +969,8 @@
       if(BigInt(p.target || 0)===0n && BigInt(p.actual || 0)===0n)return '<div class="notice">월 약정액은 헌금자 → 월 약정 설정에서 등록하세요.</div>';
       const rows=(p.monthly || []).map(m=>({...m,target:String(m.target),actual:String(m.actual)}));
       return '<section class="card"><h2>전체 약정헌금 달성 현황</h2><p>약정 100% 목표 <b>'+M(p.target)+'</b> · 실제 납부 <b>'+M(p.actual)+'</b> · 달성률 <b>'+percentage(p.actual,p.target)+'</b></p><p class="muted">'+esc(p.from)+' ~ '+esc(p.to)+' · 목표는 월 약정 전액, 납부액은 월초부터 기준일까지입니다. 미배분 '+M(p.unallocated || 0)+'은 전체에만 포함됩니다.</p></section>'+
-        chart('약정헌금 목표·납부액',rows,[["target","약정 목표(100%)","#627D98","LINE"],["actual","실제 약정헌금 납부","#A8202B","ACTUAL"]],null,"line")+
-        chart('약정헌금 달성률 · 목표 100%와 실제',rows,[["full","약정 목표 100%","#627D98","LINE"],["rate","실제 달성률","#A8202B","RATE"]],null,"line",{percent:true});
+        chart('약정헌금 목표·납부액',rows,[["target","약정 목표(100%)","#627D98","LINE"],["actual","실제 약정헌금 납부","#D73027","ACTUAL"]],null,"line")+
+        chart('약정헌금 달성률 · 목표 100%와 실제',rows,[["full","약정 목표 100%","#627D98","LINE"],["rate","실제 달성률","#D73027","RATE"]],null,"line",{percent:true});
     }
     function pledgePerson(id) {return (pledgeStats.people || []).find(p=>p.id===id) || {};}
     function monthlyPledge(id) {
@@ -992,7 +993,7 @@
     }
     function externalChurchPage() {
       const rows=(data.records || []).filter(r=>r.TYPE==='INCOME'&&r.DATE >=$('from').value&&r.DATE <=$('to').value&&r.EXTERNAL_CHURCH_ID);
-      return '<section class="card"><h2>정기 후원 외부 교회</h2><div class="actions"><button data-new-external>외부 교회 추가</button><button data-sync-external>기존 내역 자동 연결</button><button data-link-external>거래 직접 연결</button></div><p class="muted">교회명 또는 등록한 입금자명이 정확히 일치하는 수입을 연결합니다. 통장에 짧게 찍히는 이름은 입금자명에 함께 등록하세요.</p>'+table(['교회명','통장 입금자명','기간 헌금','건수','메모','상태','관리'],externalStats.map(c=>[esc(c.NAME),esc(c.ALIASES),M(c.AMOUNT),esc(c.RECORD_COUNT),esc(c.NOTES),c.ACTIVE?'활성':'비활성','<button data-edit-external="'+c.ID+'">수정</button>']))+'</section>'+chart('외부 교회별 헌금',externalStats.map(c=>({label:c.NAME,value:String(c.AMOUNT),color:'#B05A2A'})),[['value','외부교회헌금','#B05A2A']])+ '<section class="card"><h2>외부 교회 헌금 내역</h2>'+table(['일자','교회','내역','금액','비고','관리'],rows.map(r=>[esc(r.DATE),esc(externalStats.find(c=>c.ID===r.EXTERNAL_CHURCH_ID)?.NAME),esc(r.DESCRIPTION),M(r.AMOUNT),esc(r.REMARKS),'<button data-record="'+r.ID+'">상세</button>']))+'</section>';
+      return '<section class="card"><h2>정기 후원 외부 교회</h2><div class="actions"><button data-new-external>외부 교회 추가</button><button data-sync-external>기존 내역 자동 연결</button><button data-link-external>거래 직접 연결</button></div><p class="muted">교회명 또는 등록한 입금자명이 정확히 일치하는 수입을 연결합니다. 통장에 짧게 찍히는 이름은 입금자명에 함께 등록하세요.</p>'+table(['교회명','통장 입금자명','기간 헌금','건수','메모','상태','관리'],externalStats.map(c=>[esc(c.NAME),esc(c.ALIASES),M(c.AMOUNT),esc(c.RECORD_COUNT),esc(c.NOTES),c.ACTIVE?'활성':'비활성','<button data-edit-external="'+c.ID+'">수정</button>']))+'</section>'+chart('외부 교회별 헌금',externalStats.map(c=>({label:c.NAME,value:String(c.AMOUNT),color:'#F28E2B'})),[['value','외부교회헌금','#F28E2B']])+ '<section class="card"><h2>외부 교회 헌금 내역</h2>'+table(['일자','교회','내역','금액','비고','관리'],rows.map(r=>[esc(r.DATE),esc(externalStats.find(c=>c.ID===r.EXTERNAL_CHURCH_ID)?.NAME),esc(r.DESCRIPTION),M(r.AMOUNT),esc(r.REMARKS),'<button data-record="'+r.ID+'">상세</button>']))+'</section>';
     }
     function externalChurchForm(c={}) {
       form('외부 교회 등록·수정','externalChurch',field('교회명','name',c.NAME || '')+field('통장 입금자명 (여러 개는 쉼표로 구분)','aliases',c.ALIASES || '','text',false)+field('메모','notes',c.NOTES || '','text',false)+select('상태','active','<option value="true" '+(c.ACTIVE!==false?'selected':'')+'>활성</option><option value="false" '+(c.ACTIVE===false?'selected':'')+'>비활성</option>'),c.ID?{id:c.ID}:{});

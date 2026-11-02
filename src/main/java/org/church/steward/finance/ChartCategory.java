@@ -6,8 +6,12 @@ import java.security.MessageDigest;
 import java.util.*;
 import org.church.steward.domain.budget.entity.Budget;
 
-/** 수입은 빨간 계열, 지출은 파란 기본색. 약정·주정·선교·감사헌금만 빨간색 안에서 구분한다. */
+/** 그래프 전용 분류. 주요 헌금은 구별되는 색, 나머지는 기타수입·지출로 합친다. */
 public record ChartCategory(String key, String label, String type, String color) {
+    public static final String INCOME_COLOR = "#7A7F87", EXPENSE_COLOR = "#2878B5";
+    private static final Map<String, String> OFFERING_COLORS = Map.of(
+            "약정헌금", "#D73027", "주정헌금", "#00876C", "선교헌금", "#7B3294", "감사헌금", "#E6AB02");
+
     public static boolean offeringRoot(String name) {
         return Set.of("헌금", "헌금수입", "헌금수익").contains(name.replaceAll("\\s", ""));
     }
@@ -35,15 +39,18 @@ public record ChartCategory(String key, String label, String type, String color)
     }
 
     public static ChartCategory named(String type, String label) {
-        String identity = type + ":" + label;
         String leaf = label.contains(" / ") ? label.substring(label.lastIndexOf(" / ") + 3) : label;
-        Map<String, String> offerings = Map.of("약정헌금", "#A8202B", "주정헌금", "#E04545", "선교헌금", "#F06B6B", "감사헌금",
-                "#C84468");
+        if (type.equals("INCOME"))
+            label = label.equals(ExternalChurchService.MARKER) ? label
+                    : OFFERING_COLORS.containsKey(leaf) ? leaf : "기타수입";
+        else if (type.equals("EXPENSE"))
+            label = "지출";
+        String identity = type + ":" + label;
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8));
             String color = label.equals(ExternalChurchService.MARKER) ? ExternalChurchService.COLOR
-                    : type.equals("EXPENSE") ? "#2878B5"
-                            : type.equals("INCOME") ? offerings.getOrDefault(leaf, "#D94747") : "#627D98";
+                    : type.equals("EXPENSE") ? EXPENSE_COLOR
+                            : type.equals("INCOME") ? OFFERING_COLORS.getOrDefault(label, INCOME_COLOR) : "#627D98";
             return new ChartCategory("cat_" + HexFormat.of().formatHex(hash, 0, 10), label, type, color);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
@@ -55,13 +62,6 @@ public record ChartCategory(String key, String label, String type, String color)
     }
 
     public ChartCategory publicCategory() {
-        if (label.equals(ExternalChurchService.MARKER))
-            return ExternalChurchService.category();
-        if (label.startsWith("헌금수입 / ")) {
-            String leaf = label.substring("헌금수입 / ".length());
-            return offering(DefaultBudgetCatalog.INCOME.contains(leaf) && !leaf.equals("기타수입") ? leaf : "기타헌금");
-        }
-        var allowed = type.equals("INCOME") ? DefaultBudgetCatalog.INCOME : DefaultBudgetCatalog.EXPENSE;
-        return named(type, allowed.contains(label) ? label : type.equals("INCOME") ? "기타수입" : "기타비용");
+        return named(type, label);
     }
 }

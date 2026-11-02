@@ -6,19 +6,25 @@ import org.junit.jupiter.api.Test;
 
 class ChartCategoryTest {
     @Test
-    void onlyFourOfferingsHaveDistinctRedShadesAndExpensesUseDefaultBlue() {
+    void majorOfferingsAreDistinctAndDefaultCategoriesCollapseToOneIdentity() {
         var offerings = List.of("약정헌금", "주정헌금", "선교헌금", "감사헌금").stream().map(ChartCategory::offering).toList();
-        assertThat(offerings).extracting(ChartCategory::color).doesNotHaveDuplicates();
-        for (var category : offerings) {
-            var c = category.awtColor();
-            assertThat(c.getRed()).isGreaterThan(c.getBlue()).isGreaterThan(c.getGreen());
-        }
-        String income = ChartCategory.named("INCOME", "기타수입").color();
-        assertThat(ChartCategory.named("INCOME", "임의 수입").color()).isEqualTo(income);
-        assertThat(ChartCategory.offering("특별헌금").color()).isEqualTo(income);
-        var expense = ChartCategory.named("EXPENSE", "관리비");
-        assertThat(ChartCategory.named("EXPENSE", "교육비").color()).isEqualTo(expense.color());
-        assertThat(expense.awtColor().getBlue()).isGreaterThan(expense.awtColor().getRed())
-                .isGreaterThan(expense.awtColor().getGreen());
+        var colors = new java.util.ArrayList<>(offerings.stream().map(ChartCategory::color).toList());
+        colors.add(ExternalChurchService.COLOR);
+        colors.add(ChartCategory.INCOME_COLOR);
+        colors.add(ChartCategory.EXPENSE_COLOR);
+        assertThat(colors).doesNotHaveDuplicates();
+        assertThat(offerings).extracting(ChartCategory::label).containsExactly("약정헌금", "주정헌금", "선교헌금", "감사헌금");
+        var income = ChartCategory.named("INCOME", "기타수입");
+        for (var name : List.of("임의 수입", "보이드이", "식사비용", "기타수입"))
+            assertThat(ChartCategory.named("INCOME", name)).isEqualTo(income);
+        assertThat(ChartCategory.offering("특별헌금")).isEqualTo(income);
+        var expense = ChartCategory.named("EXPENSE", "지출");
+        for (var name : List.of("관리비", "교육비", "물품/시설관리", "월세", "식사비용"))
+            assertThat(ChartCategory.named("EXPENSE", name)).isEqualTo(expense);
+        assertThat(ChartCategory.path("INCOME", List.of("헌금수입", "약정헌금", "세부 항목")))
+                .isEqualTo(ChartCategory.offering("약정헌금"));
+        assertThat(income.publicCategory()).isEqualTo(income);
+        assertThat(expense.publicCategory()).isEqualTo(expense);
+        assertThat(ExternalChurchService.category().publicCategory()).isEqualTo(ExternalChurchService.category());
     }
 }

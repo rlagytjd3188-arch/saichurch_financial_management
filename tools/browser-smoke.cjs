@@ -73,6 +73,8 @@ const fs = require("node:fs");
     assert.ok(await page.locator('[data-series-key="pledgeTarget"]').count()>0);
     assert.ok(await page.locator('[data-series-key="full"]').count()>0);
     const catalogue=await page.evaluate(()=>report.chartCategories);
+    assert.equal(new Set(catalogue.map(c=>c.key)).size,catalogue.length);
+    assert.ok(catalogue.every(c=>['약정헌금','주정헌금','선교헌금','감사헌금','외부교회헌금','기타수입','지출'].includes(c.label)));
     for(const c of catalogue) assert.ok(await page.locator('svg [data-series-key="'+c.key+'"][fill="'+c.color+'"]').count()>0);
     await page.screenshot({path:out+'/pledge-dashboard.png',fullPage:true});
     await page.getByRole("button", { name: "헌금자", exact: true }).click();
@@ -189,7 +191,12 @@ const fs = require("node:fs");
     await page.screenshot({path:out+'/external-churches.png',fullPage:true});
     await page.getByRole('button',{name:'대시보드',exact:true}).click();
     const externalKey=await page.evaluate(()=>report.chartCategories.find(c=>c.label==='외부교회헌금').key);
-    assert.ok(await page.locator('svg [data-series-key="'+externalKey+'"][fill="#B05A2A"]').count()>0);
+    assert.ok(await page.locator('svg [data-series-key="'+externalKey+'"][fill="#F28E2B"]').count()>0);
+    const composition=page.locator('section.card').filter({has:page.getByRole('heading',{name:'수입·비용 구성',exact:true})});
+    await composition.locator('.chart-table [data-point]').filter({hasText:'기타수입'}).click();
+    assert.match(await page.locator('#modal').textContent(), /100,000/);
+    assert.ok(!(await page.locator('#modal').textContent()).includes('은행후원명'));
+    await page.locator('#close').click();
     await page
       .getByRole("button", { name: "재무상태 보고서", exact: true })
       .click();

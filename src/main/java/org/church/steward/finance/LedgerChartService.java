@@ -10,11 +10,19 @@ import lombok.RequiredArgsConstructor;
 public class LedgerChartService {
     private final JdbcTemplate jdbc;
 
-    public Map<Long, ChartCategory> budgetCategories() {
+    private Map<Long, Map<String, Object>> budgets() {
         Map<Long, Map<String, Object>> budgets = new HashMap<>();
         for (var b : jdbc.queryForList("SELECT ID,PARENT_ID,NAME,TYPE FROM BUDGET"))
             budgets.put(FinanceEngine.number(b.get("ID")), b);
-        Map<Long, ChartCategory> out = new HashMap<>();
+        return budgets;
+    }
+
+    public Map<Long, List<String>> budgetPaths() {
+        return paths(budgets());
+    }
+
+    private Map<Long, List<String>> paths(Map<Long, Map<String, Object>> budgets) {
+        Map<Long, List<String>> out = new HashMap<>();
         for (var b : budgets.values()) {
             List<String> path = new ArrayList<>();
             Map<String, Object> current = b;
@@ -24,7 +32,18 @@ public class LedgerChartService {
                 current = current.get("PARENT_ID") == null ? null
                         : budgets.get(FinanceEngine.number(current.get("PARENT_ID")));
             }
-            out.put(FinanceEngine.number(b.get("ID")), ChartCategory.path(b.get("TYPE").toString(), path));
+            out.put(FinanceEngine.number(b.get("ID")), path);
+        }
+        return out;
+    }
+
+    public Map<Long, ChartCategory> budgetCategories() {
+        var budgets = budgets();
+        var paths = paths(budgets);
+        Map<Long, ChartCategory> out = new HashMap<>();
+        for (var b : budgets.values()) {
+            long id = FinanceEngine.number(b.get("ID"));
+            out.put(id, ChartCategory.path(b.get("TYPE").toString(), paths.get(id)));
         }
         return out;
     }

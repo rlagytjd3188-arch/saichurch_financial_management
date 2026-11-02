@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class ExternalChurchService {
     public static final String MARKER = "외부교회헌금";
-    public static final String COLOR = "#B05A2A";
+    public static final String COLOR = "#F28E2B";
     private final JdbcTemplate jdbc;
     private final UserSessionHolder sessions;
 

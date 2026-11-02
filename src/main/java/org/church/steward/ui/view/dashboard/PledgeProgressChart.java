@@ -48,7 +48,7 @@ class PledgeProgressChart extends JComponent {
             g.setStroke(new BasicStroke(1, 0, 0, 1, new float[] { 5, 3 }, 0));
             g.drawLine(left, hundred, right, hundred);
             g.setStroke(new BasicStroke(2));
-            g.setColor(Color.decode("#A8202B"));
+            g.setColor(org.church.steward.finance.ChartCategory.offering("약정헌금").awtColor());
             int px = -1, py = 0, n = summary.monthly().size();
             for (int i = 0; i < n; i++) {
                 var m = summary.monthly().get(i);

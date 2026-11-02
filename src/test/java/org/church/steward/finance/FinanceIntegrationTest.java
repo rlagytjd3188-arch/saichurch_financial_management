@@ -329,6 +329,82 @@ class FinanceIntegrationTest {
     }
 
     @Test
+    void defaultChartGroupsPreserveMonthlyAmountsAndAccountingDetails(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path temp) throws Exception {
+        jdbc.update("UPDATE BUDGET SET NAME='헌금수입' WHERE ID=9001");
+        var names = List.of("약정헌금", "주정헌금", "선교헌금", "감사헌금", "합성기타헌금1", "합성기타헌금2");
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            jdbc.update(
+                    "INSERT INTO OFFERING_TYPE(NAME) SELECT ? WHERE NOT EXISTS(SELECT 1 FROM OFFERING_TYPE WHERE NAME=?)",
+                    name, name);
+            jdbc.update(
+                    "INSERT INTO BUDGET(ID,FISCAL_YEAR_ID,TYPE,NAME,AMOUNT,SORT_ORDER,PARENT_ID) VALUES(?,9000,'INCOME',?,1000000,?,9001)",
+                    9100 + i, name, i);
+            jdbc.update(
+                    "INSERT INTO BUDGET(ID,FISCAL_YEAR_ID,TYPE,NAME,AMOUNT,SORT_ORDER,PARENT_ID) VALUES(?,9000,'INCOME','하위 항목',1000000,0,?)",
+                    9200 + i, 9100 + i);
+            commands.record(Map.of("kind", "INCOME", "year", 9000, "budget", 9200 + i, "date", date.toString(),
+                    "amount", (i + 1) * 10000, "contact", 9003));
+        }
+        commands.record(Map.of("kind", "EXPENSE", "year", 9000, "budget", 9002, "date", date.toString(), "amount",
+                30000, "contact", 9004));
+        jdbc.update(
+                "INSERT INTO BUDGET(ID,FISCAL_YEAR_ID,TYPE,NAME,AMOUNT,SORT_ORDER) VALUES(9300,9000,'EXPENSE','물품/시설관리',1000000,1)");
+        commands.record(Map.of("kind", "EXPENSE", "year", 9000, "budget", 9300, "date", date.toString(), "amount",
+                40000, "contact", 9004));
+        var web = engine.report(date, date);
+        var categories = (List<Map<String, String>>) web.get("chartCategories");
+        assertThat(categories).extracting(c -> c.get("label")).containsExactlyInAnyOrder("약정헌금", "주정헌금", "선교헌금", "감사헌금",
+                "기타수입", "지출");
+        assertThat(categories).extracting(c -> c.get("color")).doesNotHaveDuplicates();
+        assertThat(categories).anySatisfy(c -> {
+            assertThat(c.get("label")).isEqualTo("기타수입");
+            assertThat(c.get("amount")).isEqualTo("110000");
+        });
+        assertThat(categories).anySatisfy(c -> {
+            assertThat(c.get("label")).isEqualTo("지출");
+            assertThat(c.get("amount")).isEqualTo("70000");
+        });
+        var others = ChartCategory.named("INCOME", "기타수입");
+        for (var report : List.of(web, engine.publicReport(date, date))) {
+            assertThat(report.get("income")).isEqualTo("210000");
+            assertThat(report.get("expense")).isEqualTo("70000");
+            var month = ((List<Map<String, String>>) report.get("monthly")).getFirst();
+            assertThat(month.get(others.key())).isEqualTo("110000");
+            assertThat(month.get("gift_" + others.key())).isEqualTo("110000");
+        }
+        var nativeMonth = dashboardService.getMonthlyTrend(9000L).getFirst();
+        assertThat(nativeMonth.getBreakdown()).hasSize(6);
+        assertThat(nativeMonth.getBreakdown().stream().mapToLong(ChartPart::amount).sum()).isEqualTo(280000);
+        var report = reportService.getWeeklySettlementReport(9000L, date, date);
+        assertThat(report.getPeriodTrend().getFirst().offeringBreakdown()).anySatisfy(p -> {
+            assertThat(p.category()).isEqualTo(others);
+            assertThat(p.amount()).isEqualTo(110000);
+        });
+        assertThat(report.getExpenseRecords()).extracting(x -> x.getBudgetName()).contains("물품/시설관리");
+        jdbc.update("UPDATE BUDGET SET NAME='약정헌금' WHERE ID=9001");
+        assertThat(engine.offeringForBudget(9205, "INCOME")).isEqualTo(giftType());
+        assertThat(engine.offeringForBudget(9205, "EXPENSE")).isNull();
+        var doc = org.church.steward.ui.view.report.composer.WeeklySettlementReportComposer.compose(report,
+                org.church.steward.ui.view.report.layout.ReportStyle.DEFAULT);
+        var file = temp.resolve("chart-colors.pdf");
+        org.church.steward.ui.view.report.output.ReportPdfExporter.export(doc, file);
+        try (var pdf = org.apache.pdfbox.Loader.loadPDF(file.toFile())) {
+            assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(pdf))
+                    .contains("약정헌금", "주정헌금", "선교헌금", "감사헌금", "기타수입", "지출", "물품/시설관리");
+            String output = System.getenv("SAI_PLEDGE_SAMPLES");
+            if (output != null) {
+                var out = java.nio.file.Path.of(output);
+                java.nio.file.Files.createDirectories(out);
+                javax.imageio.ImageIO.write(new org.apache.pdfbox.rendering.PDFRenderer(pdf).renderImageWithDPI(0, 110),
+                        "png", out.resolve("chart-colors.png").toFile());
+            }
+        }
+        balanced();
+    }
+
+    @Test
     void chartsGroupFirstLevelAndOfferingSecondLevelAcrossWebNativeAndPdf(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path temp) throws Exception {
         jdbc.update("UPDATE BUDGET SET NAME='헌금수입' WHERE ID=9001");
@@ -343,8 +419,8 @@ class FinanceIntegrationTest {
         pledge(9003, 100000, "2044-01", "2044-12");
         var web = engine.report(date, date);
         var categories = (List<Map<String, String>>) web.get("chartCategories");
-        assertThat(categories).extracting(c -> c.get("label")).containsExactlyInAnyOrder("헌금수입 / 약정헌금", "헌금수입 / 감사헌금",
-                "관리비");
+        assertThat(categories).extracting(c -> c.get("label")).containsExactlyInAnyOrder("약정헌금", "감사헌금",
+                "지출");
         assertThat(categories).extracting(c -> c.get("color")).doesNotHaveDuplicates();
         var nativeMonth = dashboardService.getMonthlyTrend(9000L).getFirst();
         assertThat(nativeMonth.getBreakdown().stream().mapToLong(ChartPart::amount).sum()).isEqualTo(130000);
@@ -364,7 +440,7 @@ class FinanceIntegrationTest {
         org.church.steward.ui.view.report.output.ReportPdfExporter.export(doc, file);
         try (var pdf = org.apache.pdfbox.Loader.loadPDF(file.toFile())) {
             assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(pdf)).contains("약정 목표(100%)", "실제(%)",
-                    "80.0%", "헌금수입 / 약정헌금", "헌금수입 / 감사헌금");
+                    "80.0%", "약정헌금", "감사헌금");
             String output = System.getenv("SAI_PLEDGE_SAMPLES");
             if (output != null) {
                 var out = java.nio.file.Path.of(output);

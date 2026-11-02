@@ -7,7 +7,8 @@ import org.church.steward.ui.view.report.layout.*;
 import org.church.steward.ui.view.report.layout.ReportTable.Column;
 
 final class PledgeSection {
-    private static final Color ACTUAL = Color.decode("#A8202B"), TARGET = Color.decode("#627D98");
+    private static final Color ACTUAL = org.church.steward.finance.ChartCategory.offering("약정헌금").awtColor(),
+            TARGET = Color.decode("#627D98");
 
     static void render(ReportCanvas canvas, PledgeService.Summary summary) {
         render(canvas, summary, 0);
