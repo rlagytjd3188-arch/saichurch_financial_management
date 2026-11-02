@@ -62,6 +62,13 @@ const fs = require("node:fs");
     await page.locator('#editForm button').click();
     await page.waitForFunction(()=>!document.querySelector('#modal').open && data.pledgeCommitments.find(p=>p.CONTACT_ID===9003).END_MONTH===null);
     assert.equal(await page.evaluate(()=>data.pledgeCommitments.find(p=>p.CONTACT_ID===9003).END_MONTH),null);
+    assert.equal(await page.locator('#contactsTable tr').filter({hasText:'검증 개인 이름'}).locator('.pledge-missing').textContent(),'약정헌금 미납');
+    await page.locator('#to').fill('2044-01-31');await page.locator('#refresh').click();
+    await page.waitForFunction(()=>document.querySelector('#contactsTable') && ![...document.querySelectorAll('#contactsTable tr')].find(r=>r.textContent.includes('검증 개인 이름')).querySelector('.pledge-missing'));
+    await page.locator('#to').fill('2044-02-29');await page.locator('#refresh').click();
+    await page.waitForFunction(()=>document.querySelector('#contactsTable') && [...document.querySelectorAll('#contactsTable tr')].find(r=>r.textContent.includes('검증 개인 이름')).querySelector('.pledge-missing'));
+    await page.locator('#to').fill('2044-12-31');await page.locator('#refresh').click();
+    await page.waitForFunction(()=>pledgeStats.to==='2044-12-31');
     await page.getByRole('button',{name:'대시보드',exact:true}).click();
     assert.ok(await page.locator('[data-series-key="pledgeTarget"]').count()>0);
     assert.ok(await page.locator('[data-series-key="full"]').count()>0);
@@ -171,6 +178,18 @@ const fs = require("node:fs");
         !document.querySelector("#modal").open &&
         document.querySelector("#content").textContent.includes("100,000"),
     );
+    await page.evaluate(async()=>{await api('/api/write',{operation:'record',kind:'INCOME',year:9000,budget:9001,date:'2044-01-10',amount:50000,contact:9003,memo:'09:00:00 · 은행후원명',remarks:'외부 기존 메모'});await load();});
+    await page.getByRole('button',{name:'외부 교회',exact:true}).click();
+    await page.locator('[data-new-external]').click();
+    await page.locator('#editForm [name=name]').fill('합성외부교회');
+    await page.locator('#editForm [name=aliases]').fill('은행후원명');
+    await page.locator('#editForm button').click();
+    await page.waitForFunction(()=>document.querySelector('#content').textContent.includes('합성외부교회')&&document.querySelector('#content').textContent.includes('외부 기존 메모 · 외부교회헌금'));
+    assert.equal(await page.evaluate(()=>report.pledges.actual),'100000');
+    await page.screenshot({path:out+'/external-churches.png',fullPage:true});
+    await page.getByRole('button',{name:'대시보드',exact:true}).click();
+    const externalKey=await page.evaluate(()=>report.chartCategories.find(c=>c.label==='외부교회헌금').key);
+    assert.ok(await page.locator('svg [data-series-key="'+externalKey+'"][fill="#B05A2A"]').count()>0);
     await page
       .getByRole("button", { name: "재무상태 보고서", exact: true })
       .click();
@@ -240,6 +259,8 @@ const fs = require("node:fs");
       ),
     );
     assert.equal(await publicPage.locator("[data-new-record]").count(), 0);
+    assert.ok(!(await publicPage.locator('#content').textContent()).includes('합성외부교회'));
+    assert.equal(await publicPage.locator('[data-nav="외부 교회"]').count(),0);
     await page.locator("[data-share=false]").click();
     await page.waitForFunction(
       () => document.querySelector("#shareResult").textContent === "공개 OFF",
@@ -248,7 +269,7 @@ const fs = require("node:fs");
     assert.equal(response.status(), 404);
     assert.deepEqual(errors, []);
     console.log(
-      "Browser smoke passed: four-character login, gift/reversal, category colors, monthly pledges, target/rate lines, PDF, mobile, and public projection.",
+      "Browser smoke passed: four-character login, gift/reversal, monthly unpaid badges, external church linkage, category colors, pledge lines, PDF, mobile, and public projection.",
     );
   } finally {
     await browser.close();

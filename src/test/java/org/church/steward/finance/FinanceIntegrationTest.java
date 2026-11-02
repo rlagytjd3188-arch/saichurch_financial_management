@@ -30,6 +30,8 @@ class FinanceIntegrationTest {
     @Autowired
     PledgeService pledges;
     @Autowired
+    ExternalChurchService externalChurches;
+    @Autowired
     JdbcTemplate jdbc;
     @Autowired
     FinancialRecordService records;
@@ -161,6 +163,83 @@ class FinanceIntegrationTest {
     }
 
     private final LocalDate date = LocalDate.of(2044, 1, 5);
+
+    @Test
+    void externalChurchRegistrationLinksOldAndNewIncomeWithoutChangingOriginalMemoOrTotals() {
+        long old = commands.record(Map.of("kind", "INCOME", "year", 9000, "budget", 9001, "date", date.toString(),
+                "amount", 300000, "contact", 9003, "memo", "12:34:00 · 은행표시명", "remarks", "기존 비고"));
+        externalChurches.save(Map.of("name", "검증 외부 교회", "aliases", "은행표시명", "notes", "정기 후원"));
+        long church = FinanceEngine.number(externalChurches.list(date, date).getFirst().get("ID"));
+        assertThat(jdbc.queryForObject("SELECT EXTERNAL_CHURCH_ID FROM FINANCIAL_RECORD WHERE ID=?", Long.class, old))
+                .isEqualTo(church);
+        assertThat(jdbc.queryForObject("SELECT REMARKS FROM FINANCIAL_RECORD WHERE ID=?", String.class, old))
+                .isEqualTo("기존 비고");
+        var list = records
+                .listFinancialRecords(org.church.steward.domain.financialrecord.dto.FinancialRecordSearchRequestDto
+                        .builder().fiscalYearId(9000L).build());
+        assertThat(list.getFirst().getRemarks()).isEqualTo("기존 비고 · 외부교회헌금");
+        assertThat(list.getFirst().getRawRemarks()).isEqualTo("기존 비고");
+        long next = commands.record(Map.of("kind", "INCOME", "year", 9000, "budget", 9001, "date", date.toString(),
+                "amount", 100000, "contact", 9003, "memo", "검증 외부 교회"));
+        assertThat(jdbc.queryForObject("SELECT EXTERNAL_CHURCH_ID FROM FINANCIAL_RECORD WHERE ID=?", Long.class, next))
+                .isEqualTo(church);
+        var report = engine.report(date, date);
+        assertThat(report).containsEntry("income", "400000").containsEntry("cashBalance", "400000")
+                .containsEntry("offeringsTotal", "400000");
+        assertThat((List<Map<String, String>>) report.get("chartCategories")).anySatisfy(c -> {
+            assertThat(c.get("label")).isEqualTo("외부교회헌금");
+            assertThat(c.get("color")).isEqualTo(ExternalChurchService.COLOR);
+            assertThat(c.get("amount")).isEqualTo("400000");
+        });
+        assertThat(dashboardService.getMonthlyTrend(9000L).getFirst().getBreakdown()).anySatisfy(p -> {
+            assertThat(p.category().label()).isEqualTo("외부교회헌금");
+            assertThat(p.amount()).isEqualTo(400000);
+        });
+        assertThat(reportService.getWeeklySettlementReport(9000L, date, date).getPeriodTrend().getFirst()
+                .offeringBreakdown())
+                .anySatisfy(p -> assertThat(p.category().color()).isEqualTo(ExternalChurchService.COLOR));
+        assertThat(externalChurches.list(date, date).getFirst().get("AMOUNT")).isEqualTo("400000");
+        externalChurches.save(Map.of("id", church, "name", "변경된 외부 교회", "aliases", "은행표시명"));
+        assertThat(externalChurches.list(date, date).getFirst().get("AMOUNT")).isEqualTo("400000");
+        pledge(9003, 100000, "2044-01", null);
+        assertThat(pledges.summary(date, date).actual()).isZero();
+        var json = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()
+                .writeValueAsString(engine.publicReport(date, date));
+        assertThat(json).contains("외부교회헌금").doesNotContain("검증 외부 교회", "변경된 외부 교회", "은행표시명", "기존 비고");
+        records.deleteFinancialRecords(List.of(old));
+        assertThat(externalChurches.list(date, date).getFirst().get("AMOUNT")).isEqualTo("100000");
+        balanced();
+    }
+
+    @Test
+    void externalChurchManualLinksAndExpenseExclusionAreStable() {
+        externalChurches.save(Map.of("name", "유일 교회", "aliases", "유일입금"));
+        long church = FinanceEngine.number(externalChurches.list(date, date).getFirst().get("ID"));
+        assertThatThrownBy(() -> externalChurches.save(Map.of("name", "다른 교회", "aliases", "유일입금")))
+                .isInstanceOf(IllegalArgumentException.class);
+        long expense = commands.record(Map.of("kind", "EXPENSE", "year", 9000, "budget", 9002, "date", date.toString(),
+                "amount", 10000, "contact", 9004, "memo", "유일 교회"));
+        assertThat(
+                jdbc.queryForObject("SELECT EXTERNAL_CHURCH_ID FROM FINANCIAL_RECORD WHERE ID=?", Long.class, expense))
+                .isNull();
+        long income = record(true, 50000);
+        assertThatThrownBy(() -> externalChurches.link(List.of(income, expense), church))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(
+                jdbc.queryForObject("SELECT EXTERNAL_CHURCH_ID FROM FINANCIAL_RECORD WHERE ID=?", Long.class, income))
+                .isNull();
+        externalChurches.link(List.of(income), church);
+        records.updateFinancialRecord(income, FinancialRecordRequestDto.builder().fiscalYearId(9000L).budgetId(9001L)
+                .date(date).amount(50000).description("별도 수동 연결").contactIds(List.of(9003L)).build());
+        assertThat(
+                jdbc.queryForObject("SELECT EXTERNAL_CHURCH_ID FROM FINANCIAL_RECORD WHERE ID=?", Long.class, income))
+                .isEqualTo(church);
+        externalChurches.link(List.of(income), null);
+        externalChurches.reconcile();
+        assertThat(
+                jdbc.queryForObject("SELECT EXTERNAL_CHURCH_ID FROM FINANCIAL_RECORD WHERE ID=?", Long.class, income))
+                .isNull();
+    }
 
     private void pledge(long contact, long amount, String start, String end) {
         var body = new HashMap<String, Object>();
@@ -727,6 +806,7 @@ class FinanceIntegrationTest {
                     .isEqualTo(403);
             assertThat(http(client, "GET", "/api/data", rc, null).statusCode()).isEqualTo(403);
             assertThat(http(client, "GET", "/api/pledges", rc, null).statusCode()).isEqualTo(403);
+            assertThat(http(client, "GET", "/api/external-churches", rc, null).statusCode()).isEqualTo(403);
             assertThat(http(client, "GET", "/api/pledges?from=2044-01-01&to=2044-12-31", cookie, null).body())
                     .contains("검증 개인 이름");
             String runner = System.getenv("SAI_BROWSER_SMOKE");
@@ -784,7 +864,8 @@ class FinanceIntegrationTest {
             jdbc.update("DELETE FROM " + table);
         jdbc.update("DELETE FROM ACCT_ENTRY WHERE REVERSES_ID IS NOT NULL");
         jdbc.update("DELETE FROM ACCT_ENTRY");
-        for (String table : List.of("FINANCIAL_RECORD_CONTACT", "FINANCIAL_RECORD", "CONTACT_GROUP_MEMBER",
+        for (String table : List.of("FINANCIAL_RECORD_CONTACT", "FINANCIAL_RECORD", "EXTERNAL_CHURCH",
+                "CONTACT_GROUP_MEMBER",
                 "CONTACT_GROUP", "BUDGET", "FISCAL_YEAR", "CONTACT"))
             jdbc.update("DELETE FROM " + table);
         jdbc.update("UPDATE ACCT_ACCOUNT SET ACTIVE=TRUE");

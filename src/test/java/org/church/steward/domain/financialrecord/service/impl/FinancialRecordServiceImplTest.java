@@ -67,6 +67,9 @@ class FinancialRecordServiceImplTest {
     @Mock
     private ContactGroupService contactGroupService;
 
+    @Mock
+    private org.church.steward.finance.ExternalChurchService externalChurches;
+
     @InjectMocks
     private FinancialRecordServiceImpl financialRecordService;
 

@@ -257,7 +257,7 @@ public class ReportServiceImpl implements ReportService {
             LocalDate to, List<FinancialRecord> records, boolean monthly) {
         Map<Long, String> gifts = new HashMap<>();
         for (var gift : jdbc.queryForList(
-                "SELECT K.RECORD_ID,T.NAME FROM ACCT_LINK K JOIN FINANCIAL_RECORD R ON R.ID=K.RECORD_ID JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.FISCAL_YEAR_ID=? AND R.DATE BETWEEN ? AND ? AND R.CANCELLED=FALSE AND K.STATUS='POSTED'",
+                "SELECT K.RECORD_ID,CASE WHEN R.EXTERNAL_CHURCH_ID IS NOT NULL THEN '외부교회헌금' ELSE T.NAME END NAME FROM ACCT_LINK K JOIN FINANCIAL_RECORD R ON R.ID=K.RECORD_ID LEFT JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.FISCAL_YEAR_ID=? AND R.DATE BETWEEN ? AND ? AND R.CANCELLED=FALSE AND K.STATUS='POSTED' AND (T.ID IS NOT NULL OR R.EXTERNAL_CHURCH_ID IS NOT NULL)",
                 year, from, to))
             gifts.put(((Number) gift.get("RECORD_ID")).longValue(), gift.get("NAME").toString());
         Map<String, long[]> buckets = new java.util.TreeMap<>();

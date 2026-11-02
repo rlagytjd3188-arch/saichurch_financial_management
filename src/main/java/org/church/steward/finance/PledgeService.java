@@ -88,7 +88,12 @@ public class PledgeService {
             @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING) long target,
             @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING) long actual,
             @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING) long allocated,
-            List<Month> monthly, List<Person> people) {
+            List<Month> monthly, List<Person> people, List<Month> weekly) {
+        public Summary(LocalDate from, LocalDate to, long target, long actual, long allocated, List<Month> monthly,
+                List<Person> people) {
+            this(from, to, target, actual, allocated, monthly, people, List.of());
+        }
+
         @com.fasterxml.jackson.annotation.JsonProperty
         public Double percent() {
             return rate(actual, target);
@@ -101,7 +106,7 @@ public class PledgeService {
         }
 
         public Summary publicSummary() {
-            return new Summary(from, to, target, actual, allocated, monthly, List.of());
+            return new Summary(from, to, target, actual, allocated, monthly, List.of(), weekly);
         }
     }
 
@@ -118,7 +123,7 @@ public class PledgeService {
         LocalDate first = from.withDayOfMonth(1);
         var commitments = commitments();
         var actuals = jdbc.queryForList(
-                "SELECT R.ID,R.DATE,R.AMOUNT,A.CONTACT_ID,A.AMOUNT SHARE,C.NAME FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID LEFT JOIN OFFERING_ALLOCATION A ON A.RECORD_ID=R.ID LEFT JOIN CONTACT C ON C.ID=A.CONTACT_ID WHERE R.TYPE='INCOME' AND R.CANCELLED=FALSE AND T.NAME='약정헌금' AND R.DATE BETWEEN ? AND ? ORDER BY R.DATE,R.ID",
+                "SELECT R.ID,R.DATE,R.AMOUNT,A.CONTACT_ID,A.AMOUNT SHARE,C.NAME FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID LEFT JOIN OFFERING_ALLOCATION A ON A.RECORD_ID=R.ID LEFT JOIN CONTACT C ON C.ID=A.CONTACT_ID WHERE R.TYPE='INCOME' AND R.CANCELLED=FALSE AND T.NAME='약정헌금' AND R.EXTERNAL_CHURCH_ID IS NULL AND R.DATE BETWEEN ? AND ? ORDER BY R.DATE,R.ID",
                 first, to);
         Map<Long, long[]> totals = new TreeMap<>();
         Map<Long, String> names = new HashMap<>();
@@ -156,6 +161,23 @@ public class PledgeService {
         }
         List<Person> people = totals.entrySet().stream()
                 .map(e -> new Person(e.getKey(), names.get(e.getKey()), e.getValue()[0], e.getValue()[1])).toList();
-        return new Summary(first, to, target, actual, allocated, monthly, people);
+        List<Month> weekly = new ArrayList<>();
+        if (YearMonth.from(first).equals(YearMonth.from(to))) {
+            LocalDate begin = first;
+            while (!begin.isAfter(to)) {
+                LocalDate end = begin.with(java.time.temporal.TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY));
+                if (end.isAfter(to))
+                    end = to;
+                long paid = 0;
+                Set<Long> seen = new HashSet<>();
+                for (var a : actuals)
+                    if (!((java.sql.Date) a.get("DATE")).toLocalDate().isAfter(end)
+                            && seen.add(FinanceEngine.number(a.get("ID"))))
+                        paid = Math.addExact(paid, FinanceEngine.number(a.get("AMOUNT")));
+                weekly.add(new Month(begin + " ~ " + end, target, paid));
+                begin = end.plusDays(1);
+            }
+        }
+        return new Summary(first, to, target, actual, allocated, monthly, people, weekly);
     }
 }

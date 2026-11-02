@@ -352,7 +352,7 @@ public class FinanceEngine {
             a.put("BALANCE", n.toString());
         }
         List<Map<String, Object>> movements = query(
-                "SELECT E.ENTRY_DATE,A.TYPE,A.NAME,A.CODE,L.DEBIT,L.CREDIT,R.BUDGET_ID FROM ACCT_LINE L JOIN ACCT_ENTRY E ON E.ID=L.ENTRY_ID JOIN ACCT_ACCOUNT A ON A.ID=L.ACCOUNT_ID LEFT JOIN FINANCIAL_RECORD R ON R.ID=E.SOURCE_RECORD_ID WHERE E.ENTRY_DATE BETWEEN ? AND ? ORDER BY E.ENTRY_DATE",
+                "SELECT E.ENTRY_DATE,A.TYPE,A.NAME,A.CODE,L.DEBIT,L.CREDIT,R.BUDGET_ID,R.EXTERNAL_CHURCH_ID FROM ACCT_LINE L JOIN ACCT_ENTRY E ON E.ID=L.ENTRY_ID JOIN ACCT_ACCOUNT A ON A.ID=L.ACCOUNT_ID LEFT JOIN FINANCIAL_RECORD R ON R.ID=E.SOURCE_RECORD_ID WHERE E.ENTRY_DATE BETWEEN ? AND ? ORDER BY E.ENTRY_DATE",
                 from, to);
         TreeMap<String, BigInteger[]> months = new TreeMap<>();
         for (YearMonth m = YearMonth.from(from); !m.isAfter(YearMonth.from(to)); m = m.plusMonths(1))
@@ -376,16 +376,18 @@ public class FinanceEngine {
             } else
                 continue;
             categories.merge(type + ":" + m.get("NAME"), n, BigInteger::add);
-            ChartCategory category = m.get("BUDGET_ID") == null
-                    ? ChartCategory.path(type, List.of(m.get("NAME").toString()))
-                    : budgetCategories.getOrDefault(number(m.get("BUDGET_ID")),
-                            ChartCategory.path(type, List.of(m.get("NAME").toString())));
+            ChartCategory category = m.get("EXTERNAL_CHURCH_ID") != null && type.equals("INCOME")
+                    ? ExternalChurchService.category()
+                    : m.get("BUDGET_ID") == null
+                            ? ChartCategory.path(type, List.of(m.get("NAME").toString()))
+                            : budgetCategories.getOrDefault(number(m.get("BUDGET_ID")),
+                                    ChartCategory.path(type, List.of(m.get("NAME").toString())));
             chartTotals.merge(category, n, BigInteger::add);
             chartMonths.computeIfAbsent(month, _ -> new HashMap<>()).merge(category.key(), n, BigInteger::add);
         }
         Map<String, String> monthlyOfferings = new HashMap<>();
         for (Map<String, Object> gift : query(
-                "SELECT FORMATDATETIME(R.DATE,'yyyy-MM') LABEL,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID WHERE R.CANCELLED=FALSE AND K.STATUS='POSTED' AND K.OFFERING_TYPE_ID IS NOT NULL AND R.DATE BETWEEN ? AND ? GROUP BY FORMATDATETIME(R.DATE,'yyyy-MM')",
+                "SELECT FORMATDATETIME(R.DATE,'yyyy-MM') LABEL,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID WHERE R.CANCELLED=FALSE AND K.STATUS='POSTED' AND (K.OFFERING_TYPE_ID IS NOT NULL OR R.EXTERNAL_CHURCH_ID IS NOT NULL) AND R.DATE BETWEEN ? AND ? GROUP BY FORMATDATETIME(R.DATE,'yyyy-MM')",
                 from, to))
             monthlyOfferings.put(gift.get("LABEL").toString(), gift.get("AMOUNT").toString());
         List<Map<String, String>> monthly = new ArrayList<>();
@@ -397,7 +399,7 @@ public class FinanceEngine {
             chartMonths.getOrDefault(row.get("label"), Map.of()).forEach((k, v) -> row.put(k, v.toString()));
         Map<ChartCategory, BigInteger> offeringTotals = new LinkedHashMap<>();
         for (var gift : query(
-                "SELECT FORMATDATETIME(R.DATE,'yyyy-MM') LABEL,T.NAME,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.CANCELLED=FALSE AND K.STATUS='POSTED' AND R.DATE BETWEEN ? AND ? GROUP BY FORMATDATETIME(R.DATE,'yyyy-MM'),T.NAME",
+                "SELECT FORMATDATETIME(R.DATE,'yyyy-MM') LABEL,CASE WHEN R.EXTERNAL_CHURCH_ID IS NOT NULL THEN '외부교회헌금' ELSE T.NAME END NAME,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID LEFT JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.CANCELLED=FALSE AND K.STATUS='POSTED' AND (T.ID IS NOT NULL OR R.EXTERNAL_CHURCH_ID IS NOT NULL) AND R.DATE BETWEEN ? AND ? GROUP BY FORMATDATETIME(R.DATE,'yyyy-MM'),CASE WHEN R.EXTERNAL_CHURCH_ID IS NOT NULL THEN '외부교회헌금' ELSE T.NAME END",
                 from, to)) {
             var c = ChartCategory.offering(gift.get("NAME").toString());
             BigInteger amount = new BigInteger(gift.get("AMOUNT").toString());
@@ -423,7 +425,7 @@ public class FinanceEngine {
                         .map(a -> new BigInteger(a.get("BALANCE").toString())).reduce(BigInteger.ZERO, BigInteger::add)
                         .toString());
         out.put("offeringsTotal", String.valueOf(jdbc.queryForObject(
-                "SELECT COALESCE(SUM(R.AMOUNT),0) FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID WHERE R.CANCELLED=FALSE AND K.STATUS='POSTED' AND K.OFFERING_TYPE_ID IS NOT NULL AND R.DATE BETWEEN ? AND ?",
+                "SELECT COALESCE(SUM(R.AMOUNT),0) FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID WHERE R.CANCELLED=FALSE AND K.STATUS='POSTED' AND (K.OFFERING_TYPE_ID IS NOT NULL OR R.EXTERNAL_CHURCH_ID IS NOT NULL) AND R.DATE BETWEEN ? AND ?",
                 java.math.BigDecimal.class, from, to)));
         out.put("difference", asset.subtract(liability).subtract(equity).subtract(result).toString());
         out.put("accounts", all);
@@ -447,7 +449,7 @@ public class FinanceEngine {
 
     public List<Map<String, Object>> donations(LocalDate from, LocalDate to) {
         List<Map<String, Object>> rows = query(
-                "SELECT R.ID,R.DATE,R.AMOUNT,T.ID TYPE_ID,T.NAME TYPE_NAME,A.CONTACT_ID,C.NAME CONTACT_NAME,A.AMOUNT SHARE FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID LEFT JOIN OFFERING_ALLOCATION A ON A.RECORD_ID=R.ID LEFT JOIN CONTACT C ON C.ID=A.CONTACT_ID WHERE R.CANCELLED=FALSE AND R.DATE BETWEEN ? AND ? ORDER BY R.DATE,R.ID",
+                "SELECT R.ID,R.DATE,R.AMOUNT,CASE WHEN R.EXTERNAL_CHURCH_ID IS NOT NULL THEN (SELECT ID FROM OFFERING_TYPE WHERE NAME='외부교회헌금') ELSE T.ID END TYPE_ID,CASE WHEN R.EXTERNAL_CHURCH_ID IS NOT NULL THEN '외부교회헌금' ELSE T.NAME END TYPE_NAME,A.CONTACT_ID,C.NAME CONTACT_NAME,A.AMOUNT SHARE FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' LEFT JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID LEFT JOIN OFFERING_ALLOCATION A ON A.RECORD_ID=R.ID LEFT JOIN CONTACT C ON C.ID=A.CONTACT_ID WHERE R.CANCELLED=FALSE AND (T.ID IS NOT NULL OR R.EXTERNAL_CHURCH_ID IS NOT NULL) AND R.DATE BETWEEN ? AND ? ORDER BY R.DATE,R.ID",
                 from, to);
         for (Map<String, Object> r : rows) {
             var c = ChartCategory.offering(r.get("TYPE_NAME").toString());
@@ -469,10 +471,10 @@ public class FinanceEngine {
             out.put(k, internal.get(k));
         LedgerChartService.publicCharts(internal, out);
         List<Map<String, Object>> totals = query(
-                "SELECT T.NAME,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.CANCELLED=FALSE AND R.DATE BETWEEN ? AND ? GROUP BY T.NAME",
+                "SELECT CASE WHEN R.EXTERNAL_CHURCH_ID IS NOT NULL THEN '외부교회헌금' ELSE T.NAME END NAME,SUM(R.AMOUNT) AMOUNT FROM FINANCIAL_RECORD R JOIN ACCT_LINK K ON K.RECORD_ID=R.ID AND K.STATUS='POSTED' LEFT JOIN OFFERING_TYPE T ON T.ID=K.OFFERING_TYPE_ID WHERE R.CANCELLED=FALSE AND (T.ID IS NOT NULL OR R.EXTERNAL_CHURCH_ID IS NOT NULL) AND R.DATE BETWEEN ? AND ? GROUP BY CASE WHEN R.EXTERNAL_CHURCH_ID IS NOT NULL THEN '외부교회헌금' ELSE T.NAME END",
                 from, to);
         Map<String, BigInteger> safe = new TreeMap<>();
-        Set<String> allowed = Set.of("주정헌금", "약정헌금", "감사헌금", "선교헌금", "절기헌금", "특별헌금", "기타헌금");
+        Set<String> allowed = Set.of("주정헌금", "약정헌금", "감사헌금", "선교헌금", "절기헌금", "특별헌금", "기타헌금", "외부교회헌금");
         for (Map<String, Object> r : totals)
             safe.merge(allowed.contains(r.get("NAME")) ? r.get("NAME").toString() : "기타헌금",
                     new BigInteger(r.get("AMOUNT").toString()), BigInteger::add);
@@ -516,7 +518,11 @@ public class FinanceEngine {
                 "SELECT L.*,A.NAME ACCOUNT_NAME,E.ENTRY_DATE,E.MEMO,E.REVERSES_ID FROM ACCT_LINE L JOIN ACCT_ACCOUNT A ON A.ID=L.ACCOUNT_ID JOIN ACCT_ENTRY E ON E.ID=L.ENTRY_ID ORDER BY E.ID DESC,L.ID"));
         var chartBudgets = ledgerCharts.budgetCategories();
         for (var r : (List<Map<String, Object>>) out.get("records")) {
-            var c = chartBudgets.get(number(r.get("BUDGET_ID")));
+            r.put("RAW_REMARKS", r.get("REMARKS"));
+            r.put("REMARKS",
+                    ExternalChurchService.note((String) r.get("REMARKS"), r.get("EXTERNAL_CHURCH_ID") != null));
+            var c = r.get("EXTERNAL_CHURCH_ID") != null ? ExternalChurchService.category()
+                    : chartBudgets.get(number(r.get("BUDGET_ID")));
             if (c != null)
                 r.put("CHART_KEY", c.key());
         }

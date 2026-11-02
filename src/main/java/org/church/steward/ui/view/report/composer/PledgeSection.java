@@ -10,10 +10,14 @@ final class PledgeSection {
     private static final Color ACTUAL = Color.decode("#A8202B"), TARGET = Color.decode("#627D98");
 
     static void render(ReportCanvas canvas, PledgeService.Summary summary) {
+        render(canvas, summary, 0);
+    }
+
+    static void render(ReportCanvas canvas, PledgeService.Summary summary, long axisStep) {
         if (summary == null || summary.target() == 0 && summary.actual() == 0)
             return;
-        draw(canvas, summary, false);
-        draw(canvas, summary, true);
+        draw(canvas, summary, false, axisStep);
+        draw(canvas, summary, true, axisStep);
         canvas.section("약정헌금 월별 현황 · 월 약정 기준", ReportFonts.SIZE_SECTION, canvas.getLeft());
         var table = new ReportTable(canvas.getStyle(), 8, new Column("월", 0, ReportAlign.LEFT),
                 new Column("약정 목표(100%)", 0, ReportAlign.RIGHT), new Column("실제 납부", 0, ReportAlign.RIGHT),
@@ -35,35 +39,48 @@ final class PledgeSection {
         return rate == null ? "약정 없음" : String.format("%.1f%%", rate);
     }
 
-    private static void draw(ReportCanvas canvas, PledgeService.Summary s, boolean percent) {
-        double height = 142;
+    private static void draw(ReportCanvas canvas, PledgeService.Summary s, boolean percent, long axisStep) {
+        var rows = axisStep > 0 && !s.weekly().isEmpty() ? s.weekly() : s.monthly();
+        double max = percent ? 120 : 1;
+        for (var m : rows)
+            max = Math.max(max,
+                    percent ? (m.percent() == null ? 0 : m.percent() * 1.1) : Math.max(m.target(), m.actual()));
+        long intervals = 4;
+        if (!percent && axisStep > 0) {
+            intervals = Math.max(1, (long) Math.ceil(max / axisStep));
+            max = intervals * (double) axisStep;
+        }
+        double height = Math.max(142, Math.min(460, intervals * 12 + 45));
         var font = canvas.getStyle().regular(7);
         double lh = ReportText.lineHeight(font);
         height = Math.max(height, lh * 10);
         if (!canvas.fits(canvas.sectionHeight(ReportFonts.SIZE_SECTION) + height + 10))
             canvas.newPage();
-        canvas.section(percent ? "약정헌금 달성률 · 목표 100%와 실제(%)" : "약정헌금 목표·납부액 · 약정 100% 목표선", ReportFonts.SIZE_SECTION,
+        canvas.section(percent ? "약정헌금 달성률 · 목표 100%와 실제(%)" : "약정헌금 목표·납부액 (월 누계) · 약정 100% 목표선",
+                ReportFonts.SIZE_SECTION,
                 canvas.getLeft());
         double top = canvas.getY(), left = canvas.getLeft() + 42, right = canvas.getRight(),
-                bottom = top + height - lh - 6, plot = top + lh + 8;
+                bottom = top + height - lh - 6, plot = top + lh + 28;
         canvas.text(percent ? "목표 100% (점선) / 실제 달성률 (빨간색 실선)" : "약정 목표(100%, 점선) / 실제 납부액(빨간색 실선)", font,
                 ReportAlign.LEFT, left, top + ReportText.ascent(font));
-        double max = percent ? 120 : 1;
-        for (var m : s.monthly())
-            max = Math.max(max,
-                    percent ? (m.percent() == null ? 0 : m.percent() * 1.1) : Math.max(m.target(), m.actual()));
-        for (int tick = 0; tick <= 4; tick++) {
-            double value = max * tick / 4, y = bottom - (bottom - plot) * tick / 4;
+        long stride = Math.max(1, (long) Math.ceil(intervals / Math.max(1, (bottom - plot) / (lh + 2))));
+        long gridStride = Math.max(1, (intervals + 1999) / 2000);
+        for (long tick = 0; tick <= intervals; tick += gridStride) {
+            double value = max * tick / intervals, y = bottom - (bottom - plot) * tick / intervals;
             canvas.line(left, y, right, y, .4, UIColors.REPORT_GRID);
-            canvas.text(percent ? Math.round(value) + "%" : ReportFormats.compactAmount(Math.round(value)), font,
-                    ReportAlign.RIGHT, left - 5, y + ReportText.ascent(font) / 2, UIColors.REPORT_TEXT_SUB);
+            if (tick % stride == 0 || tick == intervals)
+                canvas.text(
+                        percent ? Math.round(value) + "%"
+                                : axisStep > 0 ? PeriodTrendSection.axis(Math.round(value))
+                                        : ReportFormats.compactAmount(Math.round(value)),
+                        font, ReportAlign.RIGHT, left - 5, y + ReportText.ascent(font) / 2, UIColors.REPORT_TEXT_SUB);
         }
-        double slot = (right - left) / s.monthly().size();
+        double slot = (right - left) / rows.size();
         for (int series = 0; series < 2; series++) {
             double px = 0, py = 0;
             boolean previous = false;
-            for (int i = 0; i < s.monthly().size(); i++) {
-                var m = s.monthly().get(i);
+            for (int i = 0; i < rows.size(); i++) {
+                var m = rows.get(i);
                 Double value;
                 if (percent) {
                     if (series == 0)
@@ -77,7 +94,7 @@ final class PledgeSection {
                     continue;
                 }
                 double x = left + slot * (i + .5), y = bottom - (bottom - plot) * value / max;
-                if (s.monthly().size() == 1) {
+                if (rows.size() == 1) {
                     if (series == 0)
                         for (double dx = left; dx < right; dx += 7)
                             canvas.line(dx, y, Math.min(right, dx + 4), y, 1, TARGET);
@@ -96,11 +113,15 @@ final class PledgeSection {
                         canvas.line(px, py, x, y, 1.5, ACTUAL);
                 }
                 canvas.fillRect(x - 1.5, y - 1.5, 3, 3, series == 0 ? TARGET : ACTUAL);
+                canvas.text(percent ? String.format("%.1f%%", value) : String.format("%,d원", Math.round(value)),
+                        canvas.getStyle().regular(6), ReportAlign.CENTER, x, y - (series == 0 ? 4 : 14),
+                        series == 0 ? TARGET : ACTUAL);
                 px = x;
                 py = y;
                 previous = true;
-                if (series == 0 && (i % Math.max(1, (s.monthly().size() + 11) / 12) == 0))
-                    canvas.text(m.label(), font, ReportAlign.CENTER, x, bottom + lh);
+                if (series == 0 && (i % Math.max(1, (rows.size() + 11) / 12) == 0))
+                    canvas.text(m.label().contains(" ~ ") ? m.label().split(" ~ ")[1].substring(5) : m.label(), font,
+                            ReportAlign.CENTER, x, bottom + lh);
             }
         }
         canvas.moveDown(height + 10);

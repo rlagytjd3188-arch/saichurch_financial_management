@@ -28,6 +28,7 @@ public class FinanceWeb {
     private final FinanceEngine engine;
     private final FinanceCommands commands;
     private final PledgeService pledges;
+    private final ExternalChurchService externalChurches;
     private final UserRepository users;
     private final PasswordEncoder passwords;
     private final FinancialRecordService records;
@@ -272,6 +273,11 @@ public class FinanceWeb {
                 throw new IllegalArgumentException("조회 기간을 확인하세요.");
             if (e.getRequestMethod().equals("GET")) {
                 switch (path) {
+                case "/api/external-churches" -> {
+                    if (!session.admin)
+                        throw new SecurityException("관리자 권한이 필요합니다.");
+                    send(e, 200, externalChurches.list(from, to));
+                }
                 case "/api/pledges" -> {
                     if (!session.admin)
                         throw new SecurityException("관리자 권한이 필요합니다.");
@@ -344,6 +350,11 @@ public class FinanceWeb {
             Map<String, Object> b = body(e);
             String op = String.valueOf(b.get("operation"));
             switch (op) {
+            case "externalChurch" -> externalChurches.save(b);
+            case "syncExternalChurches" -> externalChurches.reconcile();
+            case "linkExternalChurch" ->
+                externalChurches.link(((List<?>) b.get("ids")).stream().map(FinanceEngine::number).toList(),
+                        b.get("church") == null ? null : FinanceEngine.number(b.get("church")));
             case "pledge" -> pledges.save(b);
             case "cancelPledge" -> pledges.cancel(FinanceEngine.number(b.get("id")));
             case "account", "offeringType" -> engine.settings(op, b);

@@ -395,6 +395,7 @@
         }
       }
     }
+    .pledge-missing { display:inline-block; margin-left:6px; padding:3px 7px; border:1px solid #d12f3e; border-radius:4px; background:#c92a3c; color:#fff; font-weight:700; white-space:nowrap; }
   </style>
   <header>
     <b>사이교회 재무관리</b
@@ -498,6 +499,8 @@
     let readOnly = false,
       data = {},
       pledgeStats = {},
+      pledgeMonthStats = {},
+      externalStats = [],
       report = {},
       gifts = [],
       timeline = [],
@@ -511,6 +514,7 @@
       "거래",
       "헌금 관리",
       "헌금자",
+      "외부 교회",
       "계정과목",
       "재무상태표",
       "통계",
@@ -702,7 +706,8 @@
         $("login").hidden = true;
         $("app").hidden = false;
         $("logout").hidden = publicMode;
-        pledgeStats = !publicMode && !readOnly ? await api("/api/pledges"+period()) : {};
+        if(!projected() && !readOnly){[pledgeStats,pledgeMonthStats,externalStats]=await Promise.all([api('/api/pledges'+period()),api('/api/pledges?from='+$('to').value.slice(0,7)+'-01&to='+$('to').value),api('/api/external-churches'+period())]);}
+        else {pledgeStats={};pledgeMonthStats={};externalStats=[];}
         render();
       } catch (e) {
         message(e);
@@ -740,7 +745,7 @@
       return (data.records || []).filter(
         (r) =>
           r.TYPE === "INCOME" &&
-          !r.OFFERING_TYPE_ID &&
+          !r.OFFERING_TYPE_ID && !r.EXTERNAL_CHURCH_ID &&
           r.DATE >= $("from").value &&
           r.DATE <= $("to").value,
       );
@@ -981,6 +986,20 @@
       $("editForm").querySelector("[name=amount]").min='1';$("editForm").querySelector("[name=start]").required=true;$("editForm").querySelector("[name=end]").required=false;
       $("editForm").insertAdjacentHTML('afterend','<h3>기존 약정 이력</h3>'+table(["시작월","종료월","월 약정액","수정"],history.map(x=>[esc(x.START_MONTH.slice(0,7)),esc(x.END_MONTH?.slice(0,7)||'계속'),M(x.MONTHLY_AMOUNT),'<button data-edit-pledge="'+x.ID+'">수정</button><button data-cancel-pledge="'+x.ID+'">입력 취소</button>'])));
     }
+    function pledgeMissing(id) {
+      const p=(pledgeMonthStats.people || []).find(p=>p.id===id);
+      return p && BigInt(p.target)>0n && BigInt(p.actual)===0n ? '<span class="pledge-missing" title="'+esc($('to').value.slice(0,7)+' 월 약정 · 기준일까지 납부 없음')+'">약정헌금 미납</span>' : '';
+    }
+    function externalChurchPage() {
+      const rows=(data.records || []).filter(r=>r.TYPE==='INCOME'&&r.DATE >=$('from').value&&r.DATE <=$('to').value&&r.EXTERNAL_CHURCH_ID);
+      return '<section class="card"><h2>정기 후원 외부 교회</h2><div class="actions"><button data-new-external>외부 교회 추가</button><button data-sync-external>기존 내역 자동 연결</button><button data-link-external>거래 직접 연결</button></div><p class="muted">교회명 또는 등록한 입금자명이 정확히 일치하는 수입을 연결합니다. 통장에 짧게 찍히는 이름은 입금자명에 함께 등록하세요.</p>'+table(['교회명','통장 입금자명','기간 헌금','건수','메모','상태','관리'],externalStats.map(c=>[esc(c.NAME),esc(c.ALIASES),M(c.AMOUNT),esc(c.RECORD_COUNT),esc(c.NOTES),c.ACTIVE?'활성':'비활성','<button data-edit-external="'+c.ID+'">수정</button>']))+'</section>'+chart('외부 교회별 헌금',externalStats.map(c=>({label:c.NAME,value:String(c.AMOUNT),color:'#B05A2A'})),[['value','외부교회헌금','#B05A2A']])+ '<section class="card"><h2>외부 교회 헌금 내역</h2>'+table(['일자','교회','내역','금액','비고','관리'],rows.map(r=>[esc(r.DATE),esc(externalStats.find(c=>c.ID===r.EXTERNAL_CHURCH_ID)?.NAME),esc(r.DESCRIPTION),M(r.AMOUNT),esc(r.REMARKS),'<button data-record="'+r.ID+'">상세</button>']))+'</section>';
+    }
+    function externalChurchForm(c={}) {
+      form('외부 교회 등록·수정','externalChurch',field('교회명','name',c.NAME || '')+field('통장 입금자명 (여러 개는 쉼표로 구분)','aliases',c.ALIASES || '','text',false)+field('메모','notes',c.NOTES || '','text',false)+select('상태','active','<option value="true" '+(c.ACTIVE!==false?'selected':'')+'>활성</option><option value="false" '+(c.ACTIVE===false?'selected':'')+'>비활성</option>'),c.ID?{id:c.ID}:{});
+    }
+    function linkExternalForm() {
+      form('외부 교회 거래 연결','linkExternalChurch',select('교회','church','<option value="">연결 해제 (자동 연결 제외)</option>'+opt(externalStats,'ID','NAME'))+'<label>연결할 수입 (여러 개 선택)<select name="ids" multiple required>'+(data.records || []).filter(r=>r.TYPE==='INCOME'&&r.DATE >=$('from').value&&r.DATE <=$('to').value).map(r=>'<option value="'+r.ID+'">'+esc(r.DATE+' · '+r.DESCRIPTION+' · '+M(r.AMOUNT))+'</option>').join('')+'</select></label>');
+    }
     function render() {
       chartId = 0;
       charts.clear();
@@ -1144,13 +1163,14 @@
           selectionActions() +
           '<div class="actions"><button data-new-record>수입·지출 입력</button><button data-auto-donors>헌금자 자동 연결</button><button data-opening-balance>기초잔액 입력</button><details><summary>고급 회계</summary><button data-new-journal>수동 분개</button></details></div><p class="muted">일반 입력은 자동 분개합니다. 과거 REVIEW 거래는 계정을 확인해야 합니다. 거래를 클릭하면 차변·대변과 원본을 확인합니다.</p>' +
           table(
-            ["선택", "일자", "구분", "내역", "금액", "회계 상태", "상세"],
+            ["선택", "일자", "구분", "내역", "금액", "비고", "회계 상태", "상세"],
             rows.map((r) => [
               recordCheck(r.ID),
               esc(r.DATE),
               esc(r.TYPE === "INCOME" ? "수입" : "지출"),
               esc(r.DESCRIPTION),
               M(r.AMOUNT),
+              esc(r.REMARKS),
               esc(r.STATUS || "REVIEW"),
               '<button data-record="' + r.ID + '">분개·헌금 연결</button>',
             ]),
@@ -1220,7 +1240,7 @@
             ["이름", "메모", "월 약정액", "기간 약정(100%)", "기간 납부", "달성률", "등록일", "상태", "관리"],
             (data.contacts || []).map((c) => [
               esc(c.NAME),
-              esc(c.REMARKS),
+              esc(c.REMARKS)+pledgeMissing(c.ID),
               M(monthlyPledge(c.ID)),
               M(pledgePerson(c.ID).target || 0), M(pledgePerson(c.ID).actual || 0), percentage(pledgePerson(c.ID).actual,pledgePerson(c.ID).target),
               esc(c.CREATED_AT || ""),
@@ -1230,7 +1250,8 @@
             'id="contactsTable"',
           ) +
           "</section>";
-      } else if (page === "계정과목") {
+      } else if(page === "외부 교회") h+=externalChurchPage();
+      else if (page === "계정과목") {
         h +=
           '<section class="card"><div class="actions"><button data-new-account>계정 추가</button><button data-new-type>헌금 종류 추가</button></div>' +
           table(
@@ -1449,6 +1470,7 @@
           const fd = new FormData(e.target),
             body = { operation, ...hidden, ...Object.fromEntries(fd) };
           if (operation === "pledge" && !String(body.end || "").trim()) delete body.end;
+          if(operation==='linkExternalChurch'){body.ids=fd.getAll('ids');if(body.church==='')body.church=null;}
           if (fd.has("contacts")) body.contacts = fd.getAll("contacts");
           if (operation === "record" && String(body.donorName || "").trim())
             delete body.contacts;
@@ -2016,6 +2038,10 @@
         }
         else if (b.hasAttribute("data-pledge-contact")) pledgeForm(+b.dataset.pledgeContact);
         else if (b.hasAttribute("data-edit-pledge")) {const p=data.pledgeCommitments.find(p=>p.ID===+b.dataset.editPledge);pledgeForm(p.CONTACT_ID,p);}
+        else if(b.hasAttribute('data-new-external'))externalChurchForm();
+        else if(b.hasAttribute('data-edit-external'))externalChurchForm(externalStats.find(c=>c.ID===+b.dataset.editExternal));
+        else if(b.hasAttribute('data-link-external'))linkExternalForm();
+        else if(b.hasAttribute('data-sync-external')){await api('/api/write',{operation:'syncExternalChurches'});await load();}
         else if (b.hasAttribute("data-new-contact")) contactForm();
         else if (b.hasAttribute("data-new-account")) accountForm();
         else if (b.hasAttribute("data-new-type")) typeForm();

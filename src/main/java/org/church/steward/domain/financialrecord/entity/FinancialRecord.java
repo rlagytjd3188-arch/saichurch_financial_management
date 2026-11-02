@@ -53,6 +53,12 @@ public class FinancialRecord implements DynamicLoggable {
     private static final String DATE_FIELD_NAME = "일자";
     private static final String CONTACTS_FIELD_NAME = "관계자";
 
+    @Column(name = "EXTERNAL_CHURCH_ID")
+    @lombok.Setter
+    private Long externalChurchId;
+    @Column(name = "EXTERNAL_CHURCH_MANUAL", nullable = false)
+    private boolean externalChurchManual;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -26,6 +26,8 @@ public class FinancialRecordResponseDto {
     private String description;
     private long amount;
     private String remarks;
+    private String rawRemarks;
+    private Long externalChurchId;
 
     private List<Long> contactIds;
     private List<String> contactNames;

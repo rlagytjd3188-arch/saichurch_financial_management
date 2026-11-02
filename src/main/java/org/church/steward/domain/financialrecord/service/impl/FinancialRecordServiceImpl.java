@@ -47,10 +47,13 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
     private final ActivityLogService activityLogService;
     private final EntitySnapshotCapturer entitySnapshotCapturer;
     private final ContactGroupService contactGroupService;
+    private final org.church.steward.finance.ExternalChurchService externalChurches;
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher accountingEvents;
 
     private void accountingChanged(FinancialRecord record, boolean created, boolean cancelled) {
+        if (!cancelled)
+            record.setExternalChurchId(externalChurches.resolve(record));
         if (accountingEvents != null && record.getId() != null) {
             accountingEvents.publishEvent(new RecordAccountingEvent(record.getId(), created, cancelled));
         }

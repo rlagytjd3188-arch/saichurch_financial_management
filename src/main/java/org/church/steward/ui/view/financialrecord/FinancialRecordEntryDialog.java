@@ -351,7 +351,7 @@ public class FinancialRecordEntryDialog extends JDialog {
         setBudget(record.getBudgetId(), record.getBudgetName());
         descriptionField.setText(record.getDescription());
         amountField.setAmount(record.getAmount());
-        remarksField.setText(record.getRemarks());
+        remarksField.setText(record.getExternalChurchId() != null ? record.getRawRemarks() : record.getRemarks());
 
         // 칩에는 내역에 기록된 당시의 이름을 그대로 보여준다.
         contactField.clear();

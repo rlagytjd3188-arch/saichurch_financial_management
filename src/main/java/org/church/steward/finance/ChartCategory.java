@@ -20,6 +20,8 @@ public record ChartCategory(String key, String label, String type, String color)
     }
 
     public static ChartCategory offering(String name) {
+        if (name.equals(ExternalChurchService.MARKER))
+            return ExternalChurchService.category();
         return path("INCOME", List.of("헌금수입", name));
     }
 
@@ -39,8 +41,9 @@ public record ChartCategory(String key, String label, String type, String color)
                 "#C84468");
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8));
-            String color = type.equals("EXPENSE") ? "#2878B5"
-                    : type.equals("INCOME") ? offerings.getOrDefault(leaf, "#D94747") : "#627D98";
+            String color = label.equals(ExternalChurchService.MARKER) ? ExternalChurchService.COLOR
+                    : type.equals("EXPENSE") ? "#2878B5"
+                            : type.equals("INCOME") ? offerings.getOrDefault(leaf, "#D94747") : "#627D98";
             return new ChartCategory("cat_" + HexFormat.of().formatHex(hash, 0, 10), label, type, color);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
@@ -52,6 +55,8 @@ public record ChartCategory(String key, String label, String type, String color)
     }
 
     public ChartCategory publicCategory() {
+        if (label.equals(ExternalChurchService.MARKER))
+            return ExternalChurchService.category();
         if (label.startsWith("헌금수입 / ")) {
             String leaf = label.substring("헌금수입 / ".length());
             return offering(DefaultBudgetCatalog.INCOME.contains(leaf) && !leaf.equals("기타수입") ? leaf : "기타헌금");

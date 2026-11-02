@@ -25,7 +25,10 @@ public class FinancialRecordMapper {
                 .budgetName(entity.getBudget() != null ? entity.getBudget().getHierarchyName() : null)
                 .description(entity.getDescription())
                 .amount(entity.getAmount())
-                .remarks(entity.getRemarks())
+                .rawRemarks(entity.getRemarks())
+                .externalChurchId(entity.getExternalChurchId())
+                .remarks(org.church.steward.finance.ExternalChurchService.note(entity.getRemarks(),
+                        entity.getExternalChurchId() != null))
                 .contactIds(entity.getContacts() != null ? entity.getContacts().stream()
                         .map(recordContact -> recordContact.getContact().getId())
                         .collect(Collectors.toList()) : List.of())
