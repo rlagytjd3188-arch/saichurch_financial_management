@@ -45,8 +45,7 @@ public class FiscalYearManagementPanelView extends JPanel implements MenuActivat
     private static final long serialVersionUID = 1L;
 
     /**
-     * 회계 연도, 상태, 차액 칸은 폭을 고정하고, 남는 폭은 총 수입과 총 지출 칸이 똑같이 나눠 쓴다. 차액은 총 수입이나 총 지출보다 훨씬
-     * 작은 금액이어서 칸을 좁게 둔다.
+     * 회계 연도, 상태, 차액 칸은 폭을 고정한다. 금액 칸은 선호 폭을 지정하고 좁은 화면에서는 가로로 스크롤한다.
      */
     private static final int FISCAL_YEAR_COLUMN_WIDTH = 195;
     private static final int STATUS_COLUMN_WIDTH = 60;
@@ -117,7 +116,9 @@ public class FiscalYearManagementPanelView extends JPanel implements MenuActivat
         setFixedWidth(columns.getColumn(FiscalYearTableModel.COLUMN_STATUS), STATUS_COLUMN_WIDTH);
         columns.getColumn(FiscalYearTableModel.COLUMN_STATUS)
                 .setCellRenderer(new PaddedCellRenderer(SwingConstants.CENTER));
-        int[] totalColumns = { FiscalYearTableModel.COLUMN_TOTAL_INCOME, FiscalYearTableModel.COLUMN_TOTAL_EXPENSE };
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        int[] totalColumns = { FiscalYearTableModel.COLUMN_TOTAL_INCOME, FiscalYearTableModel.COLUMN_TOTAL_EXPENSE,
+                FiscalYearTableModel.COLUMN_CARRIED_FUNDS, FiscalYearTableModel.COLUMN_CURRENT_BALANCE };
         for (int column : totalColumns) {
             // 폭을 고정하지 않고 선호 폭만 같게 두어, 남는 폭을 두 칸이 똑같이 나눠 갖게 한다.
             columns.getColumn(column)

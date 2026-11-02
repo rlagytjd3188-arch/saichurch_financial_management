@@ -46,7 +46,8 @@ public class FinancialSummaryPanel extends JPanel {
 
         add(createCell("수입", FontAwesomeSolid.PLUS_CIRCLE, UIColors.INCOME, incomeLabel, false));
         add(createCell("지출", FontAwesomeSolid.MINUS_CIRCLE, UIColors.EXPENSE, expenseLabel, true));
-        add(createCell("차액", FontAwesomeSolid.EQUALS, UIColors.TEXT_SUB, differenceLabel, true));
+        add(createCell("조회 차액", FontAwesomeSolid.EQUALS, UIColors.TEXT_SUB, differenceLabel, true));
+        differenceLabel.setToolTipText("조회한 수입 - 지출입니다. 기초잔액을 포함한 잔액은 대시보드에서 확인하세요.");
 
         update(List.of());
     }

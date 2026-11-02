@@ -36,6 +36,8 @@ class FinanceIntegrationTest {
     @Autowired
     org.church.steward.domain.report.service.ReportService reportService;
     @Autowired
+    org.church.steward.domain.dashboard.service.DashboardService dashboardService;
+    @Autowired
     org.church.steward.domain.fiscalyear.service.FiscalYearService fiscalYears;
     @Autowired
     DefaultBudgetCatalog defaultBudgets;
@@ -157,6 +159,81 @@ class FinanceIntegrationTest {
     }
 
     private final LocalDate date = LocalDate.of(2044, 1, 5);
+
+    @Test
+    @DisplayName("기초잔액만 있어도 메인 대시보드·연도 목록·보고서·공개 잔액이 같고 수입 그래프는 0이다")
+    void openingOnlyAgreesAcrossBalanceScreens() {
+        engine.openingBalance(9000, date, 5000000, account("1100"));
+        var summary = dashboardService.getFiscalYearSummary(9000L);
+        assertThat(summary.getOpeningBalance()).isEqualTo(5000000);
+        assertThat(summary.getCarriedFunds()).isEqualTo(5000000);
+        assertThat(summary.getCurrentBalance()).isEqualTo(5000000);
+        assertThat(summary.getTotalIncome()).isZero();
+        assertThat(summary.getTotalExpense()).isZero();
+        var year = fiscalYears.listFiscalYears().stream().filter(y -> y.getId() == 9000L).findFirst().orElseThrow();
+        assertThat(year.getCarriedFunds()).isEqualTo(5000000);
+        assertThat(year.getCurrentBalance()).isEqualTo(5000000);
+        assertThat(year.getBalance()).isNull();
+        assertThat(dashboardService.getMonthlyTrend(9000L)).allSatisfy(m -> {
+            assertThat(m.getIncome()).isZero();
+            assertThat(m.getExpense()).isZero();
+        });
+        assertThat(dashboardService.getBudgetProgress(9000L)).allSatisfy(b -> assertThat(b.getActualAmount()).isZero());
+        assertThat(dashboardService.getIncomeBreakdown(9000L)).isEmpty();
+        assertThat(dashboardService.getRecentTransactions(9000L)).isEmpty();
+        assertThat(reportService.getAnnualSettlementReport(9000L).getCurrentBalance()).isEqualTo(5000000);
+        for (var report : List.of(engine.report(date, date), engine.publicReport(date, date))) {
+            assertThat(report).containsEntry("assets", "5000000").containsEntry("netAssets", "5000000")
+                    .containsEntry("cashBalance", "5000000").containsEntry("income", "0")
+                    .containsEntry("offeringsTotal", "0").containsEntry("difference", "0");
+        }
+    }
+
+    @Test
+    @DisplayName("대시보드와 마감 연도 목록에서 기초잔액은 잔액에만 반영하고 마감 차액은 유지한다")
+    void dashboardAndClosedYearKeepIncomeSeparateFromOpening() {
+        long opening = engine.openingBalance(9000, date, 5000000, account("1100"));
+        long gift = record(true, 100000);
+        engine.classify(gift, account("1100"), account("4000"), giftType(), null);
+        record(false, 30000);
+        var summary = dashboardService.getFiscalYearSummary(9000L);
+        assertThat(summary.getCurrentBalance()).isEqualTo(5070000);
+        assertThat(summary.getTotalIncome()).isEqualTo(100000);
+        assertThat(summary.getTotalExpense()).isEqualTo(30000);
+        fiscalYears.closeFiscalYear(9000L);
+        var year = fiscalYears.listFiscalYears().getFirst();
+        assertThat(year.getBalance()).isEqualTo(70000);
+        assertThat(year.getCurrentBalance()).isEqualTo(5070000);
+        assertThat(year.getCarriedFunds()).isEqualTo(5000000);
+        fiscalYears.reopenFiscalYear(9000L);
+        engine.reverseManual(opening);
+        assertThat(dashboardService.getFiscalYearSummary(9000L).getCurrentBalance()).isEqualTo(70000);
+        assertThat(fiscalYears.listFiscalYears().getFirst().getCurrentBalance()).isEqualTo(70000);
+        assertThat(engine.report(date, date).get("cashBalance")).isEqualTo("70000");
+    }
+
+    @Test
+    @DisplayName("다음 연도 대시보드와 연도 목록은 잔액을 이월하며 이후 연도 기초잔액은 이전 연도에 반영하지 않는다")
+    void dashboardCarryAndFutureOpeningRespectFiscalYearBoundary() {
+        engine.openingBalance(9000, date, 5000000, account("1100"));
+        record(true, 100000);
+        record(false, 30000);
+        fiscalYears.createFiscalYear("대시보드 이월", LocalDate.of(2045, 1, 1), LocalDate.of(2045, 12, 31));
+        long nextYear = jdbc.queryForObject("SELECT ID FROM FISCAL_YEAR WHERE NAME='대시보드 이월'", Long.class);
+        engine.openingBalance(nextYear, LocalDate.of(2045, 1, 1), 200000, account("1100"));
+        assertThat(dashboardService.getFiscalYearSummary(9000L).getCurrentBalance()).isEqualTo(5070000);
+        var summary = dashboardService.getFiscalYearSummary(nextYear);
+        assertThat(summary.getOpeningBalance()).isEqualTo(5200000);
+        assertThat(summary.getCarriedFunds()).isEqualTo(5270000);
+        assertThat(summary.getCurrentBalance()).isEqualTo(5270000);
+        assertThat(summary.getTotalIncome()).isZero();
+        assertThat(summary.getTotalExpense()).isZero();
+        var year = fiscalYears.listFiscalYears().stream().filter(y -> y.getId() == nextYear).findFirst().orElseThrow();
+        assertThat(year.getCurrentBalance()).isEqualTo(5270000);
+        assertThat(reportService.getAnnualSettlementReport(nextYear).getCurrentBalance()).isEqualTo(5270000);
+        assertThat(engine.report(LocalDate.of(2045, 1, 1), LocalDate.of(2045, 12, 31)).get("cashBalance"))
+                .isEqualTo("5270000");
+    }
 
     @Test
     @DisplayName("기초잔액은 입력 기간의 잔액에 더하고 수입·헌금·그래프에는 더하지 않는다")

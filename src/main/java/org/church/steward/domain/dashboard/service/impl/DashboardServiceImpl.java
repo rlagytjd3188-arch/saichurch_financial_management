@@ -41,18 +41,24 @@ public class DashboardServiceImpl implements DashboardService {
     private final BudgetRepository budgetRepository;
     private final FiscalYearRepository fiscalYearRepository;
     private final DashboardMapper dashboardMapper;
+    private final org.church.steward.finance.AccountBalanceService accountBalanceService;
 
     @Override
     public FiscalYearSummaryDto getFiscalYearSummary(Long fiscalYearId) {
+        FiscalYear year = fiscalYearRepository.findById(fiscalYearId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회계 연도입니다."));
         List<FinancialRecord> records = findRecords(fiscalYearId, null);
 
         long totalIncome = sumAmount(records, FinancialRecordType.INCOME);
         long totalExpense = sumAmount(records, FinancialRecordType.EXPENSE);
+        long carriedFunds = accountBalanceService.carriedFunds(fiscalYearId, year.getStartDate(), year.getEndDate());
 
         return FiscalYearSummaryDto.builder()
                 .totalIncome(totalIncome)
                 .totalExpense(totalExpense)
-                .currentBalance(totalIncome - totalExpense)
+                .openingBalance(accountBalanceService.openingBalance(null, year.getEndDate()))
+                .carriedFunds(carriedFunds)
+                .currentBalance(Math.addExact(carriedFunds, Math.subtractExact(totalIncome, totalExpense)))
                 .build();
     }
 

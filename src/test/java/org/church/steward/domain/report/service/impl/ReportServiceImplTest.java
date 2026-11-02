@@ -73,6 +73,9 @@ class ReportServiceImplTest {
     @Spy
     private ReportMapper reportMapper = new ReportMapper();
 
+    @Mock
+    private org.church.steward.finance.AccountBalanceService accountBalanceService;
+
     @InjectMocks
     private ReportServiceImpl reportService;
 

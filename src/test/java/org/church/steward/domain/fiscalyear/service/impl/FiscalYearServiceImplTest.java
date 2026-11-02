@@ -57,6 +57,9 @@ class FiscalYearServiceImplTest {
     @Mock
     private EntitySnapshotCapturer entitySnapshotCapturer;
 
+    @Mock
+    private org.church.steward.finance.AccountBalanceService accountBalanceService;
+
     @InjectMocks
     private FiscalYearServiceImpl fiscalYearService;
 

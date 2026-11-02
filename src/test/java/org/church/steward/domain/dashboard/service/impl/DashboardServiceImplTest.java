@@ -51,6 +51,9 @@ class DashboardServiceImplTest {
     @Spy
     private DashboardMapper dashboardMapper = new DashboardMapper();
 
+    @Mock
+    private org.church.steward.finance.AccountBalanceService accountBalanceService;
+
     @InjectMocks
     private DashboardServiceImpl dashboardService;
 
@@ -96,6 +99,9 @@ class DashboardServiceImplTest {
 
             when(financialRecordRepository.findAll(any(Specification.class)))
                     .thenReturn(List.of(income, expense));
+
+            when(fiscalYearRepository.findById(FISCAL_YEAR_ID)).thenReturn(java.util.Optional.of(
+                    createFiscalYear(LocalDate.of(CURRENT_YEAR, 1, 1), LocalDate.of(CURRENT_YEAR, 12, 31))));
 
             // When
             FiscalYearSummaryDto result = dashboardService.getFiscalYearSummary(FISCAL_YEAR_ID);
@@ -373,6 +379,8 @@ class DashboardServiceImplTest {
             when(financialRecordRepository.findAll(any(Specification.class))).thenReturn(List.of());
 
             // When
+            when(fiscalYearRepository.findById(FISCAL_YEAR_ID)).thenReturn(java.util.Optional.of(
+                    createFiscalYear(LocalDate.of(CURRENT_YEAR, 1, 1), LocalDate.of(CURRENT_YEAR, 12, 31))));
             dashboardService.getFiscalYearSummary(FISCAL_YEAR_ID);
 
             // Then

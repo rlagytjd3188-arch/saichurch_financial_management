@@ -34,13 +34,26 @@ public class FiscalYearServiceImpl implements FiscalYearService {
     private final FiscalYearMapper fiscalYearMapper;
     private final ActivityLogService activityLogService;
     private final EntitySnapshotCapturer entitySnapshotCapturer;
+    private final org.church.steward.finance.AccountBalanceService accountBalanceService;
 
     @Override
     @Transactional(readOnly = true)
     public List<FiscalYearDto> listFiscalYears() {
         return fiscalYearRepository.findAllByOrderByStartDateDesc()
                 .stream()
-                .map(fiscalYearMapper::toDto)
+                .map(year -> {
+                    FiscalYearDto dto = fiscalYearMapper.toDto(year);
+                    long funds = accountBalanceService.carriedFunds(year.getId(), year.getStartDate(),
+                            year.getEndDate());
+                    long difference = Math.subtractExact(
+                            financialRecordRepository.sumAmountByFiscalYearIdAndType(year.getId(),
+                                    FinancialRecordType.INCOME),
+                            financialRecordRepository.sumAmountByFiscalYearIdAndType(year.getId(),
+                                    FinancialRecordType.EXPENSE));
+                    dto.setCarriedFunds(funds);
+                    dto.setCurrentBalance(Math.addExact(funds, difference));
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 

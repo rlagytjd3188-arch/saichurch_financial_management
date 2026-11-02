@@ -107,7 +107,7 @@ class SummaryCard extends DashboardCard {
         footer.revalidate();
     }
 
-    /** 차액 카드의 금액 색. 남으면 차액 색, 모자라면 지출 색이다. */
+    /** 잔액 카드의 금액 색. 음수이면 지출 색이다. */
     static Color balanceColor(long balance) {
         return balance < 0 ? UIColors.EXPENSE : UIColors.BALANCE;
     }

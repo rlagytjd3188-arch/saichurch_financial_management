@@ -12,5 +12,7 @@ import lombok.NoArgsConstructor;
 public class FiscalYearSummaryDto {
     private long totalIncome;
     private long totalExpense;
-    private long currentBalance; // (수입 - 지출)
+    private long openingBalance;
+    private long carriedFunds;
+    private long currentBalance; // 기초잔액·이월액 + 해당 연도 수입 - 지출
 }

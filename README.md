@@ -1,6 +1,6 @@
-# 사이교회 재무관리 1.3.6
+# 사이교회 재무관리 1.3.7
 
-[1.3.6 변경 안내](docs/updates-1.3.6.md): 기초잔액을 주간·월간·연간 보고서의 이월액과 기말 잔액에 반영합니다. 기존 기간별 컬러 그래프도 유지합니다.
+[1.3.7 변경 안내](docs/updates-1.3.7.md): 기초잔액을 메인 대시보드와 회계 연도 관리에도 반영하고, 보고서와 같은 잔액 계산을 사용합니다.
 
 교회 수입·지출·예산을 관리하는 Windows 데스크톱 프로그램입니다. 기존 청지기 프로그램을 기반으로 **복식부기, 개인별 헌금, 재무상태표, 그래프 보고서와 읽기 전용 공유 화면**을 추가했습니다.
 
@@ -49,7 +49,7 @@ JDK **25**가 필요합니다. GitHub Desktop에서 Pull 후 **Build-Windows.cmd
 ./gradlew --no-daemon --max-workers=2 test bootJar spotlessCheck
 ```
 
-Linux/macOS 실행에는 GUI 환경이 필요합니다. 완성된 JAR를 `build/` 밖의 별도 폴더로 복사한 후 `java -jar church-steward-1.3.6.jar`를 실행합니다. `build/libs`에서 실제 장부를 운영하지 마세요.
+Linux/macOS 실행에는 GUI 환경이 필요합니다. 완성된 JAR를 `build/` 밖의 별도 폴더로 복사한 후 `java -jar church-steward-1.3.7.jar`를 실행합니다. `build/libs`에서 실제 장부를 운영하지 마세요.
 
 Windows 배포본 전체 빌드: `gradlew.bat packageWindows`. 개발용 브라우저 검증 방법과 구현·DB·테스트 보고서는 [구현 상세 보고서](docs/saichurch-1.3.md)에 있습니다.
 

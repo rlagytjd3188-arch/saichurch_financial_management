@@ -22,4 +22,9 @@ public class FiscalYearDto {
     private Long totalIncome;
     private Long totalExpense;
     private Long balance;
+    /** 실시간 잔액 조회값. 저장된 마감 차액과 구분한다. */
+    @lombok.Setter
+    private Long carriedFunds;
+    @lombok.Setter
+    private Long currentBalance;
 }

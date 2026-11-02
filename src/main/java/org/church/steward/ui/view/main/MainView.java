@@ -94,6 +94,14 @@ public class MainView extends JFrame {
         AppIcons.apply(this);
         // 진행 중인 가져오기는 저장되지 않으므로, 창을 닫을 때 확인을 받은 뒤에 끝낸다.
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowGainedFocus(WindowEvent e) {
+                if (e.getOppositeWindow() == null && "DASHBOARD".equals(selectedCardName)) {
+                    dashboardView.onMenuSelected();
+                }
+            }
+        });
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {

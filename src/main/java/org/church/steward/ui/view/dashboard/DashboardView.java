@@ -94,7 +94,8 @@ public class DashboardView extends JPanel implements MenuActivatable {
     private final SummaryCard incomeCard = new SummaryCard("총 수입", FontAwesomeSolid.PLUS_CIRCLE, UIColors.INCOME);
     private final SummaryCard expenseCard = new SummaryCard("총 지출", FontAwesomeSolid.MINUS_CIRCLE,
             UIColors.EXPENSE);
-    private final SummaryCard balanceCard = new SummaryCard("차액", FontAwesomeSolid.EQUALS, UIColors.BALANCE);
+    private final SummaryCard openingCard = new SummaryCard("기초잔액·이월액", FontAwesomeSolid.WALLET, UIColors.BALANCE);
+    private final SummaryCard balanceCard = new SummaryCard("기말 잔액", FontAwesomeSolid.EQUALS, UIColors.BALANCE);
 
     private final MonthlyTrendChart monthlyTrendChart = new MonthlyTrendChart();
     private final BudgetProgressCard budgetProgressCard = new BudgetProgressCard();
@@ -128,8 +129,9 @@ public class DashboardView extends JPanel implements MenuActivatable {
     }
 
     private void initComponents() {
-        JPanel summaryRow = new JPanel(new GridLayout(1, 3, CARD_GAP, 0));
+        JPanel summaryRow = new JPanel(new GridLayout(1, 4, CARD_GAP, 0));
         summaryRow.setOpaque(false);
+        summaryRow.add(openingCard);
         summaryRow.add(incomeCard);
         summaryRow.add(expenseCard);
         summaryRow.add(balanceCard);
@@ -180,6 +182,11 @@ public class DashboardView extends JPanel implements MenuActivatable {
         panel.add(Box.createHorizontalStrut(TITLE_BADGE_GAP));
         panel.add(fiscalYearBadge);
         panel.add(Box.createHorizontalGlue());
+        var refresh = new org.church.steward.ui.component.button.IconButton(FontAwesomeSolid.SYNC_ALT,
+                ComponentSize.SMALL);
+        refresh.setToolTipText("새로고침");
+        refresh.addActionListener(_ -> loadData());
+        panel.add(refresh);
         return panel;
     }
 
@@ -362,6 +369,9 @@ public class DashboardView extends JPanel implements MenuActivatable {
         long income = summary.getTotalIncome();
         long expense = summary.getTotalExpense();
         long balance = summary.getCurrentBalance();
+        openingCard.setAmount(summary.getCarriedFunds());
+        openingCard.setNote("기초잔액 " + org.church.steward.util.NumberUtils.toKoreanAmount(summary.getOpeningBalance()));
+        openingCard.setToolTipText("기초잔액과 이전 회계 연도의 수입·지출 잔액을 합산합니다.");
 
         incomeCard.setAmount(income);
         incomeCard.setBudgetProgress(income, sumBudgetedAmount(progressList, BudgetType.INCOME));
@@ -371,7 +381,8 @@ public class DashboardView extends JPanel implements MenuActivatable {
 
         balanceCard.setAmount(balance);
         balanceCard.setAmountColor(SummaryCard.balanceColor(balance));
-        balanceCard.setNote(createBalanceNote(income, balance));
+        balanceCard.setNote("선택 연도 종료일 기준");
+        balanceCard.setToolTipText("기초잔액·이월액 + 총 수입 - 총 지출");
     }
 
     /**
@@ -385,16 +396,6 @@ public class DashboardView extends JPanel implements MenuActivatable {
             }
         }
         return total;
-    }
-
-    private String createBalanceNote(long income, long balance) {
-        if (balance < 0) {
-            return "지출이 수입보다 많습니다";
-        }
-        if (income <= 0) {
-            return null;
-        }
-        return String.format("수입의 %.1f%%", balance * 100.0 / income);
     }
 
     private record DashboardData(FiscalYearSummaryDto summary, List<BudgetProgressDto> progress,
