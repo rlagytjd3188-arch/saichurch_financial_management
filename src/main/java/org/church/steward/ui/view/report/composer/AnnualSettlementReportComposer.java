@@ -11,6 +11,7 @@ import org.church.steward.ui.view.report.layout.ReportDocument;
 import org.church.steward.ui.view.report.layout.ReportFonts;
 import org.church.steward.ui.view.report.layout.ReportPaper;
 import org.church.steward.ui.view.report.layout.ReportStyle;
+import org.church.steward.ui.view.report.layout.ReportText;
 import org.church.steward.ui.view.report.layout.ReportTable;
 import org.church.steward.ui.view.report.layout.ReportTable.Column;
 import org.church.steward.ui.view.report.layout.ReportTable.RowStyle;
@@ -44,6 +45,22 @@ public final class AnnualSettlementReportComposer {
         ReportStyles.drawUnit(canvas, ReportFonts.SIZE_SMALL);
 
         drawSummary(canvas, report);
+        canvas.moveDown(ReportStyles.SECTION_SPACING);
+        canvas.section("잔액 현황 (기초잔액 포함)", ReportFonts.SIZE_SECTION, canvas.getLeft());
+        ReportTable balances = new ReportTable(canvas.getStyle(), BODY_SIZE, new Column("전기 이월액", 0, ReportAlign.RIGHT),
+                new Column("연도 중 기초잔액", 0, ReportAlign.RIGHT), new Column("연도 수입", 0, ReportAlign.RIGHT),
+                new Column("연도 지출", 0, ReportAlign.RIGHT), new Column("기말 잔액", 0, ReportAlign.RIGHT));
+        balances.addRow(RowStyle.EMPHASIS, 0, ReportFormats.amount(report.getPreviousBalance()),
+                ReportFormats.amount(report.getPeriodOpeningBalance()),
+                ReportFormats.amount(report.getCurrentYear().getIncome()),
+                ReportFormats.amount(report.getCurrentYear().getExpense()),
+                ReportFormats.amount(report.getCurrentBalance()));
+        balances.render(canvas);
+        var font = canvas.getStyle().regular(8f);
+        canvas.text("기초잔액 반영액: " + ReportFormats.amount(report.getOpeningBalance()) + "원 (기준일까지 · 수입/헌금에서 제외)", font,
+                ReportAlign.LEFT, canvas.getLeft(), canvas.getY() + ReportText.ascent(font));
+        canvas.moveDown(ReportText.lineHeight(font) + 3);
+
         canvas.moveDown(ReportStyles.SECTION_SPACING);
         if (report.getPeriodTrend() != null && !report.getPeriodTrend().isEmpty())
             PeriodTrendSection.render(canvas, "연간", report.getPeriodTrend());

@@ -158,6 +158,98 @@ class FinanceIntegrationTest {
 
     private final LocalDate date = LocalDate.of(2044, 1, 5);
 
+    @Test
+    @DisplayName("기초잔액은 입력 기간의 잔액에 더하고 수입·헌금·그래프에는 더하지 않는다")
+    void openingBalanceAppearsInPeriodReports(@org.junit.jupiter.api.io.TempDir java.nio.file.Path temp)
+            throws Exception {
+        engine.openingBalance(9000, date, 5000000, account("1100"));
+        long gift = record(true, 100000);
+        engine.classify(gift, account("1100"), account("4000"), giftType(), null);
+        record(false, 30000);
+        var sameWeek = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 1, 1),
+                LocalDate.of(2044, 1, 7));
+        assertThat(sameWeek.getOpeningBalance()).isEqualTo(5000000);
+        assertThat(sameWeek.getPeriodOpeningBalance()).isEqualTo(5000000);
+        assertThat(sameWeek.getPreviousBalance()).isZero();
+        assertThat(sameWeek.getCurrentBalance()).isEqualTo(5070000);
+        assertThat(sameWeek.getWeekly().getIncome()).isEqualTo(100000);
+        assertThat(sameWeek.getPeriodTrend().stream().mapToLong(x -> x.income()).sum()).isEqualTo(100000);
+        assertThat(sameWeek.getPeriodTrend().stream().mapToLong(x -> x.offerings()).sum()).isEqualTo(100000);
+        var nextWeek = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 1, 8),
+                LocalDate.of(2044, 1, 14));
+        assertThat(nextWeek.getPreviousBalance()).isEqualTo(5070000);
+        assertThat(nextWeek.getPeriodOpeningBalance()).isZero();
+        assertThat(nextWeek.getCurrentBalance()).isEqualTo(5070000);
+        var year = reportService.getAnnualSettlementReport(9000L);
+        assertThat(year.getOpeningBalance()).isEqualTo(5000000);
+        assertThat(year.getPeriodOpeningBalance()).isEqualTo(5000000);
+        assertThat(year.getCurrentBalance()).isEqualTo(5070000);
+        assertThat(engine.report(date, date).get("assets")).isEqualTo("5070000");
+        var month = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 1, 1), LocalDate.of(2044, 1, 31));
+        assertThat(month.getCurrentBalance()).isEqualTo(5070000);
+        var style = org.church.steward.ui.view.report.layout.ReportStyle.DEFAULT;
+        var reports = List.of(
+                org.church.steward.ui.view.report.composer.WeeklySettlementReportComposer.compose(sameWeek, style),
+                org.church.steward.ui.view.report.composer.WeeklySettlementReportComposer.compose(month, style, true),
+                org.church.steward.ui.view.report.composer.AnnualSettlementReportComposer.compose(year, style));
+        for (int i = 0; i < reports.size(); i++) {
+            var file = temp.resolve("opening-report-" + i + ".pdf");
+            org.church.steward.ui.view.report.output.ReportPdfExporter.export(reports.get(i), file);
+            try (var pdf = org.apache.pdfbox.Loader.loadPDF(file.toFile())) {
+                String text = new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
+                assertThat(text).contains("기초잔액", "5,000,000", "5,070,000");
+                String output = System.getenv("SAI_OPENING_REPORT_SAMPLES");
+                if (output != null) {
+                    var dir = java.nio.file.Path.of(output);
+                    java.nio.file.Files.createDirectories(dir);
+                    java.nio.file.Files.copy(file, dir.resolve(file.getFileName()),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    javax.imageio.ImageIO.write(
+                            new org.apache.pdfbox.rendering.PDFRenderer(pdf).renderImageWithDPI(0, 110), "png",
+                            dir.resolve("opening-report-" + i + ".png").toFile());
+                }
+            }
+        }
+
+    }
+
+    @Test
+    @DisplayName("미래 기초잔액은 미리 반영하지 않고 취소한 기초잔액은 상쇄한다")
+    void openingBalanceRespectsDateAndCancellation() {
+        long entry = engine.openingBalance(9000, LocalDate.of(2044, 2, 1), 5000000, account("1100"));
+        var january = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 1, 1),
+                LocalDate.of(2044, 1, 31));
+        assertThat(january.getOpeningBalance()).isZero();
+        assertThat(january.getCurrentBalance()).isZero();
+        var february = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 2, 1),
+                LocalDate.of(2044, 2, 29));
+        assertThat(february.getCurrentBalance()).isEqualTo(5000000);
+        engine.reverseManual(entry);
+        var cancelled = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 2, 1),
+                LocalDate.of(2044, 2, 29));
+        assertThat(cancelled.getOpeningBalance()).isZero();
+        assertThat(cancelled.getCurrentBalance()).isZero();
+    }
+
+    @Test
+    @DisplayName("전년도 기초잔액과 수입·지출은 다음 회계 연도로 한 번만 이월된다")
+    void openingBalanceCarriesIntoNextYear() {
+        engine.openingBalance(9000, date, 5000000, account("1100"));
+        record(true, 100000);
+        record(false, 30000);
+        fiscalYears.createFiscalYear("기초잔액 이월 검증", LocalDate.of(2045, 1, 1), LocalDate.of(2045, 12, 31));
+        long nextYear = jdbc.queryForObject("SELECT ID FROM FISCAL_YEAR WHERE NAME='기초잔액 이월 검증'", Long.class);
+        var report = reportService.getAnnualSettlementReport(nextYear);
+        assertThat(report.getPreviousBalance()).isEqualTo(5070000);
+        assertThat(report.getPeriodOpeningBalance()).isZero();
+        assertThat(report.getCurrentBalance()).isEqualTo(5070000);
+        assertThat(report.getCurrentYear().getIncome()).isZero();
+        var month = reportService.getWeeklySettlementReport(nextYear, LocalDate.of(2045, 1, 1),
+                LocalDate.of(2045, 1, 31));
+        assertThat(month.getPreviousBalance()).isEqualTo(5070000);
+        assertThat(month.getCurrentBalance()).isEqualTo(5070000);
+    }
+
     private long datedRecord(boolean income, long amount, LocalDate day) {
         long id = record(income, amount);
         records.updateFinancialRecord(id,

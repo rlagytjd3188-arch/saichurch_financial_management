@@ -27,6 +27,13 @@ public class AnnualSettlementReportDto {
     /** 직전 회계 연도의 수입/지출 총액. 직전 회계 연도가 없으면 null */
     private ReportSummaryDto previousYear;
     private ReportSummaryDto currentYear;
+    private long previousBalance;
+    private long openingBalance;
+    private long periodOpeningBalance;
+
+    public long getCurrentBalance() {
+        return Math.addExact(Math.addExact(previousBalance, periodOpeningBalance), currentYear.getDifference());
+    }
 
     /** 월별 수입/지출. 대시보드의 월별 차트와 같은 데이터다. */
     private List<MonthlyTrendDto> monthlyTrend;

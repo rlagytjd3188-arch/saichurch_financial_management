@@ -84,7 +84,12 @@ public class ReportServiceImpl implements ReportService {
                 .fiscalYearName(fiscalYear.getName())
                 .startDate(startDate)
                 .endDate(endDate)
-                .previousBalance(summarize(previousRecords).getDifference())
+                .previousBalance(Math.addExact(
+                        Math.addExact(summarize(previousRecords).getDifference(),
+                                otherYearCarry(fiscalYearId, startDate)),
+                        capitalAdjustments(null, startDate.minusDays(1))))
+                .openingBalance(capitalAdjustments(null, endDate))
+                .periodOpeningBalance(capitalAdjustments(startDate, endDate))
                 .weekly(summarize(weeklyRecords))
                 .periodTrend(periodTrend(fiscalYearId, startDate, endDate, weeklyRecords, false))
                 .incomeStatus(toExecutionRows(incomeTree, incomeTree.getRoots(), records, FinancialRecordType.INCOME))
@@ -172,6 +177,10 @@ public class ReportServiceImpl implements ReportService {
                         .orElse(null))
                 .previousYear(previousSummary)
                 .currentYear(summarize(records))
+                .previousBalance(Math.addExact(otherYearCarry(fiscalYearId, fiscalYear.getStartDate()),
+                        capitalAdjustments(null, fiscalYear.getStartDate().minusDays(1))))
+                .openingBalance(capitalAdjustments(null, fiscalYear.getEndDate()))
+                .periodOpeningBalance(capitalAdjustments(fiscalYear.getStartDate(), fiscalYear.getEndDate()))
                 .monthlyTrend(dashboardService.getMonthlyTrend(fiscalYearId))
                 .periodTrend(
                         periodTrend(fiscalYearId, fiscalYear.getStartDate(), fiscalYear.getEndDate(), records, true))
@@ -238,11 +247,21 @@ public class ReportServiceImpl implements ReportService {
         return fiscalYearRepository.findFirstByStartDateLessThanOrderByStartDateDesc(fiscalYear.getStartDate());
     }
 
-    /**
-     * 회계 연도에 속한 수입/지출 내역을 조회한다.
-     *
-     * @param endDate 이 날짜까지의 내역만 조회한다. null이면 날짜를 제한하지 않는다.
-     */
+    /** 과거분을 재입력하지 않고 이월한다. 원본 거래와 분리된 자산/순자산 수동 분개만 집계한다. */
+    private long capitalAdjustments(LocalDate from, LocalDate to) {
+        String sql = "SELECT COALESCE(SUM(L.DEBIT-L.CREDIT),0) FROM ACCT_ENTRY E JOIN ACCT_LINE L ON L.ENTRY_ID=E.ID JOIN ACCT_ACCOUNT A ON A.ID=L.ACCOUNT_ID WHERE E.SOURCE_RECORD_ID IS NULL AND A.TYPE='ASSET' AND E.ENTRY_DATE<=? AND EXISTS(SELECT 1 FROM ACCT_LINE X JOIN ACCT_ACCOUNT XA ON XA.ID=X.ACCOUNT_ID WHERE X.ENTRY_ID=E.ID AND XA.TYPE='EQUITY')";
+        java.math.BigDecimal amount = from == null ? jdbc.queryForObject(sql, java.math.BigDecimal.class, to)
+                : jdbc.queryForObject(sql + " AND E.ENTRY_DATE>=?", java.math.BigDecimal.class, to, from);
+        return amount == null ? 0 : amount.longValueExact();
+    }
+
+    private long otherYearCarry(long year, LocalDate before) {
+        var amount = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(CASE WHEN TYPE='INCOME' THEN AMOUNT ELSE -AMOUNT END),0) FROM FINANCIAL_RECORD WHERE CANCELLED=FALSE AND FISCAL_YEAR_ID<>? AND DATE<?",
+                java.math.BigDecimal.class, year, before);
+        return amount == null ? 0 : amount.longValueExact();
+    }
+
     private List<org.church.steward.domain.report.dto.PeriodTrendDto> periodTrend(long year, LocalDate from,
             LocalDate to, List<FinancialRecord> records, boolean monthly) {
         Set<Long> gifts = new HashSet<>(jdbc.queryForList(
@@ -269,6 +288,11 @@ public class ReportServiceImpl implements ReportService {
                 e.getValue()[0], e.getValue()[1], e.getValue()[2])).toList();
     }
 
+    /**
+     * 회계 연도에 속한 수입/지출 내역을 조회한다.
+     *
+     * @param endDate 이 날짜까지의 내역만 조회한다. null이면 날짜를 제한하지 않는다.
+     */
     private List<FinancialRecord> findRecords(Long fiscalYearId, LocalDate endDate) {
         return financialRecordRepository.findAll(FinancialRecordSpecification.searchBy(
                 FinancialRecordSearchRequestDto.builder()

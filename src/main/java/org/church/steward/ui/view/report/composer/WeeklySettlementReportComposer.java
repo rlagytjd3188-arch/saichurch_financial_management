@@ -134,22 +134,29 @@ public final class WeeklySettlementReportComposer {
      * 개요. 전주 잔액에서 주간 수입과 지출을 거쳐 현재 잔액에 이르는 흐름을 한 줄로 보여준다.
      */
     private static void drawOverview(ReportCanvas canvas, WeeklySettlementReportDto report, boolean monthly) {
-        ReportTable table = new ReportTable(canvas.getStyle(), OVERVIEW_SIZE,
-                new Column(monthly ? "전월 이월액" : "전주 잔액", 0, ReportAlign.CENTER),
-                new Column(monthly ? "월간 수입" : "주간 수입", 0, ReportAlign.CENTER),
-                new Column(monthly ? "월간 지출" : "주간 지출", 0, ReportAlign.CENTER),
-                new Column(monthly ? "월간 차액" : "주간 차액", 0, ReportAlign.CENTER),
-                new Column("현재 잔액", 0, ReportAlign.CENTER));
-
-        table.addRow(RowStyle.EMPHASIS, 0,
-                ReportFormats.amount(report.getPreviousBalance()),
-                ReportFormats.amount(report.getWeekly()
-                        .getIncome()),
-                ReportFormats.amount(report.getWeekly()
-                        .getExpense()),
-                ReportFormats.amount(report.getWeekly()
-                        .getDifference()),
-                ReportFormats.amount(report.getCurrentBalance()));
+        boolean adjusted = report.getPeriodOpeningBalance() != 0;
+        java.util.List<Column> columns = new java.util.ArrayList<>();
+        columns.add(new Column(monthly ? "전월 이월액" : "전주 잔액", 0, ReportAlign.CENTER));
+        if (adjusted)
+            columns.add(new Column("기간 중 기초잔액", 0, ReportAlign.CENTER));
+        columns.add(new Column(monthly ? "월간 수입" : "주간 수입", 0, ReportAlign.CENTER));
+        columns.add(new Column(monthly ? "월간 지출" : "주간 지출", 0, ReportAlign.CENTER));
+        columns.add(new Column(monthly ? "월간 차액" : "주간 차액", 0, ReportAlign.CENTER));
+        columns.add(new Column("현재 잔액", 0, ReportAlign.CENTER));
+        ReportTable table = new ReportTable(canvas.getStyle(), OVERVIEW_SIZE, columns.toArray(Column[]::new));
+        java.util.List<String> amounts = new java.util.ArrayList<>();
+        amounts.add(ReportFormats.amount(report.getPreviousBalance()));
+        if (adjusted)
+            amounts.add(ReportFormats.amount(report.getPeriodOpeningBalance()));
+        amounts.add(ReportFormats.amount(report.getWeekly().getIncome()));
+        amounts.add(ReportFormats.amount(report.getWeekly().getExpense()));
+        amounts.add(ReportFormats.amount(report.getWeekly().getDifference()));
+        amounts.add(ReportFormats.amount(report.getCurrentBalance()));
+        table.addRow(RowStyle.EMPHASIS, 0, amounts.toArray(String[]::new));
         table.render(canvas);
+        var font = canvas.getStyle().regular(8f);
+        canvas.text("기초잔액 반영액: " + ReportFormats.amount(report.getOpeningBalance()) + "원 (기준일까지 · 수입/헌금에서 제외)", font,
+                ReportAlign.LEFT, canvas.getLeft(), canvas.getY() + ReportText.ascent(font));
+        canvas.moveDown(ReportText.lineHeight(font) + 3);
     }
 }

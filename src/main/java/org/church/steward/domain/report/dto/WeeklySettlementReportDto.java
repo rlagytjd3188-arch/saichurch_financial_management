@@ -23,8 +23,12 @@ public class WeeklySettlementReportDto {
     private LocalDate startDate;
     private LocalDate endDate;
 
-    /** 전주 잔액. 회계 연도의 내역 중 시작일 전날까지의 수입 - 지출 */
+    /** 시작일 전날까지의 기초잔액과 수입 - 지출. 이전 회계 연도 이월액도 포함한다. */
     private long previousBalance;
+    /** 보고서 종료일까지 등록된 기초잔액·순자산 조정액 */
+    private long openingBalance;
+    /** 선택 기간에 입력된 기초잔액. 수입에는 포함하지 않는다. */
+    private long periodOpeningBalance;
     /** 해당 주간의 수입과 지출 */
     private ReportSummaryDto weekly;
 
@@ -37,9 +41,9 @@ public class WeeklySettlementReportDto {
     private List<ReportRecordGroupDto> expenseRecords;
 
     /**
-     * 현재 잔액(전주 잔액 + 주간 수입 - 주간 지출)
+     * 현재 잔액(이월액 + 기간 중 기초잔액 + 기간 수입 - 기간 지출)
      */
     public long getCurrentBalance() {
-        return previousBalance + weekly.getDifference();
+        return Math.addExact(Math.addExact(previousBalance, periodOpeningBalance), weekly.getDifference());
     }
 }
