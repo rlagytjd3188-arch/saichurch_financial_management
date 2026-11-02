@@ -1,0 +1,2196 @@
+<!doctype html>
+<html lang="ko">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>사이교회 재무관리</title>
+  <style>
+    :root {
+      --blue: #2596cc;
+      --ink: #30465b;
+      --muted: #78909e;
+      --line: #e1e8ed;
+      --bg: #f4f7fa;
+      --red: #b85555;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    [hidden] {
+      display: none !important;
+    }
+    body {
+      margin: 0;
+      font:
+        14px system-ui,
+        "Malgun Gothic",
+        sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+      border: 1px solid #d4dfe7;
+      border-radius: 7px;
+      padding: 10px;
+      background: white;
+      color: inherit;
+    }
+    button {
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--blue);
+      color: white;
+      border-color: var(--blue);
+    }
+    button:hover {
+      filter: brightness(0.96);
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      padding: 20px 4vw;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    header b {
+      font-size: 22px;
+    }
+    header small {
+      color: var(--muted);
+    }
+    nav {
+      display: flex;
+      gap: 8px;
+      padding: 17px 4vw;
+      overflow: auto;
+      white-space: nowrap;
+    }
+    nav button.active {
+      background: var(--ink);
+      color: white;
+    }
+    main {
+      max-width: 1450px;
+      margin: auto;
+      padding: 10px 4vw 40px;
+    }
+    h1 {
+      font-size: 26px;
+    }
+    h2 {
+      font-size: 18px;
+    }
+    h3 {
+      font-size: 15px;
+    }
+    p {
+      line-height: 1.7;
+    }
+    .toolbar,
+    .actions {
+      display: flex;
+      align-items: end;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .toolbar label,
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      padding: 24px;
+      margin: 18px 0;
+      overflow: hidden;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .cards .card {
+      margin: 0;
+    }
+    .cards small {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .cards strong {
+      font-size: 24px;
+    }
+    .scroll {
+      overflow: auto;
+      max-height: 650px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      white-space: nowrap;
+    }
+    th,
+    td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+    }
+    th {
+      background: #f6f9fb;
+      position: sticky;
+      top: 0;
+    }
+    td.num,
+    th.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    tr.click {
+      cursor: pointer;
+    }
+    tr.click:hover {
+      background: #eff8fc;
+    }
+    .notice {
+      background: #eaf4fb;
+      padding: 14px;
+      border-radius: 8px;
+      line-height: 1.7;
+      margin: 15px 0;
+    }
+    .error {
+      color: var(--red);
+      background: #fff0f0;
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .badge {
+      background: #eaf4ef;
+      color: #3c7962;
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    .bad {
+      color: var(--red);
+    }
+    .chart {
+      min-height: 240px;
+    }
+    .chart svg {
+      width: 100%;
+      height: auto;
+      max-height: 420px;
+    }
+    .chart svg text {
+      font-family: inherit;
+    }
+    .chart [data-point] {
+      cursor: pointer;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px;
+      font-size: 12px;
+    }
+    .legend label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form .full {
+      grid-column: 1/-1;
+    }
+    .login {
+      width: 420px;
+      max-width: 95vw;
+      margin: 12vh auto;
+    }
+    .login label {
+      margin: 20px 0;
+    }
+    dialog {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 28px;
+      width: 750px;
+      max-width: 95vw;
+      max-height: 90vh;
+      overflow: auto;
+    }
+    dialog::backdrop {
+      background: #20354988;
+    }
+    dialog input,
+    dialog select {
+      width: 100%;
+    }
+    #message {
+      white-space: pre-wrap;
+    }
+    .only-table .chart,
+    .only-table .legend {
+      display: none;
+    }
+    .only-chart .chart-table {
+      display: none;
+    }
+    .print-title {
+      display: none;
+    }
+    a {
+      color: #2081b5;
+    }
+    .public-hide {
+      display: none !important;
+    }
+    footer {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 30px;
+      border-top: 1px solid var(--line);
+      padding-top: 20px;
+    }
+    @media (max-width: 750px) {
+      header {
+        padding: 18px;
+      }
+      header b {
+        font-size: 19px;
+      }
+      header small {
+        display: none;
+      }
+      nav {
+        padding: 12px;
+      }
+      .cards {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .cards strong {
+        font-size: 20px;
+      }
+      .card {
+        padding: 16px;
+      }
+      .grid,
+      .form {
+        grid-template-columns: 1fr;
+      }
+      .form .full {
+        grid-column: auto;
+      }
+      main {
+        padding: 10px 16px;
+      }
+      .toolbar {
+        gap: 8px;
+      }
+      .toolbar label {
+        flex: 1;
+        min-width: 130px;
+      }
+      .toolbar input,
+      .toolbar select {
+        width: 100%;
+      }
+      .chart {
+        min-height: 170px;
+      }
+      h1 {
+        font-size: 23px;
+      }
+    }
+    @media print {
+      body {
+        background: white;
+        color: black;
+        font-size: 10pt;
+      }
+      header,
+      nav,
+      .toolbar,
+      .actions,
+      button,
+      dialog,
+      #message,
+      .no-print {
+        display: none !important;
+      }
+      main {
+        max-width: none;
+        padding: 0;
+      }
+      .card {
+        break-inside: avoid;
+        border: 0;
+        padding: 12px 0;
+        margin: 10px 0;
+      }
+      .cards {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .scroll {
+        overflow: visible;
+        max-height: none;
+      }
+      table {
+        white-space: normal;
+      }
+      th {
+        position: static;
+      }
+      .print-title {
+        display: block;
+        text-align: center;
+      }
+      .chart svg {
+        max-height: 260px;
+      }
+      .page-footer {
+        position: fixed;
+        bottom: 0;
+      }
+      .notice {
+        background: transparent;
+        border: 1px solid #ccc;
+      }
+      footer:after {
+        content: " · 페이지 " counter(page);
+      }
+      @page {
+        size: A4 portrait;
+        margin: 15mm;
+        @bottom-center {
+          content: "사이교회 재무관리 · " counter(page) " / " counter(pages);
+          font-size: 9pt;
+        }
+      }
+    }
+  </style>
+  <header>
+    <b>사이교회 재무관리</b
+    ><small id="scope">복식부기 · 헌금 · 시각화 재정보고</small
+    ><button id="logout" hidden>로그아웃</button>
+  </header>
+  <nav id="nav"></nav>
+  <main>
+    <div id="message" role="alert"></div>
+    <section id="login" class="card login" hidden>
+      <h1>관리자 로그인</h1>
+      <p>기존 데스크톱 계정으로 로그인하세요.</p>
+      <form id="loginform">
+        <label
+          >사용자 ID<input
+            name="id"
+            required
+            autocomplete="username"
+            value="관리자" /></label
+        ><label
+          >비밀번호<input
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password" /></label
+        ><button class="primary">로그인</button>
+      </form>
+    </section>
+    <section id="app" hidden>
+      <div class="print-title">
+        <h1>사이교회 재무상태 보고서</h1>
+        <p id="print-period"></p>
+      </div>
+      <h1 id="heading"></h1>
+      <div class="toolbar">
+        <label>시작일<input type="date" id="from" /></label
+        ><label>기준일 / 종료일<input type="date" id="to" /></label
+        ><button id="refresh" class="primary">조회</button
+        ><label
+          >집계 단위<select id="grain">
+            <option value="month">월</option>
+            <option value="quarter">분기</option>
+            <option value="year">연도</option>
+          </select></label
+        ><label><input type="checkbox" id="cumulative" />누적값</label
+        ><label id="personlabel"
+          >헌금자<select id="person">
+            <option value="">전체</option>
+          </select></label
+        ><label id="typelabel"
+          >헌금 종류<select id="giftType">
+            <option value="">전체</option>
+          </select></label
+        ><label id="audienceLabel"
+          >공개 범위<select id="audience">
+            <option value="internal">내부용</option>
+            <option value="external">외부 공개용 (개인정보 제외)</option>
+          </select></label
+        ><label
+          >보고서 구성<select id="detail">
+            <option value="summary">요약</option>
+            <option value="full">상세</option>
+          </select></label
+        ><button onclick="window.print()">인쇄 / PDF 저장</button>
+      </div>
+      <div id="content"></div>
+      <footer>
+        사이교회 재무관리 · 표·그래프·보고서는 같은 집계값을 사용합니다. 생성일
+        <span id="generated"></span>
+      </footer>
+    </section>
+  </main>
+  <dialog id="modal">
+    <div class="actions">
+      <h2 id="modalTitle"></h2>
+      <button id="close">닫기</button>
+    </div>
+    <div id="modalContent"></div>
+  </dialog>
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id),
+      esc = (v) =>
+        String(v ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        ),
+      money = (v) => BigInt(v ?? 0).toLocaleString("ko-KR"),
+      M = (v) => money(v) + "원";
+    const publicMode =
+        location.port === "8766" ||
+        /^\/[A-Za-z0-9_-]{40,}/.test(location.pathname),
+      publicBase = location.pathname.replace(/\/$/, "");
+    let readOnly = false,
+      data = {},
+      report = {},
+      gifts = [],
+      timeline = [],
+      comparison = {},
+      recent = {},
+      page = decodeURIComponent(location.hash.slice(1)) || "대시보드",
+      charts = new Map(),
+      chartId = 0;
+    const names = [
+      "대시보드",
+      "거래",
+      "헌금 관리",
+      "헌금자",
+      "계정과목",
+      "재무상태표",
+      "통계",
+      "재무상태 보고서",
+      "외부 조회",
+    ];
+    $("from").value = new Date().getFullYear() + "-01-01";
+    $("to").value = new Date().toLocaleDateString("sv-SE");
+    $("generated").textContent = new Date().toLocaleString("ko-KR");
+    const typeName = (t) =>
+      ({
+        ASSET: "자산",
+        LIABILITY: "부채",
+        EQUITY: "순자산",
+        INCOME: "수익",
+        EXPENSE: "비용",
+      })[t] || t;
+    const projected = () => publicMode || $("audience").value === "external";
+    const period = () => "?from=" + $("from").value + "&to=" + $("to").value;
+    async function api(path, body) {
+      const r = await fetch(path, {
+        method: body ? "POST" : "GET",
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined,
+        cache: "no-store",
+      });
+      let j;
+      try {
+        j = await r.json();
+      } catch {
+        throw Error("서버 응답을 확인하세요.");
+      }
+      if (!r.ok) {
+        if (r.status === 403 && !publicMode) {
+          $("login").hidden = false;
+          $("app").hidden = true;
+        }
+        throw Error(j.error || "처리하지 못했습니다.");
+      }
+      return j;
+    }
+    function message(e) {
+      $("message").innerHTML = e
+        ? '<div class="notice error">' + esc(e.message || e) + "</div>"
+        : "";
+    }
+    $("loginform").onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api("/api/login", Object.fromEntries(new FormData(e.target)));
+        await load();
+      } catch (x) {
+        message(x);
+      }
+    };
+    $("logout").onclick = async () => {
+      await api("/api/logout", {});
+      location.reload();
+    };
+    $("close").onclick = () => $("modal").close();
+    function modal(title, html) {
+      $("modalTitle").textContent = title;
+      $("modalContent").innerHTML = html;
+      $("modal").showModal();
+    }
+    function table(headers, rows, attrs = "") {
+      return (
+        '<div class="scroll"><table ' +
+        attrs +
+        "><thead><tr>" +
+        headers.map((h) => "<th>" + esc(h) + "</th>").join("") +
+        "</tr></thead><tbody>" +
+        rows
+          .map(
+            (r) =>
+              "<tr>" + r.map((c) => "<td>" + c + "</td>").join("") + "</tr>",
+          )
+          .join("") +
+        "</tbody></table></div>"
+      );
+    }
+    function cards() {
+      return (
+        '<div class="cards">' +
+        [
+          ["총자산", "assets"],
+          ["총부채", "liabilities"],
+          ["순자산", "netAssets"],
+          ["기간 수입", "income"],
+          ["기간 비용", "expense"],
+          ["기간 운영결과", "surplus"],
+          ["기간 총헌금", "offeringsTotal"],
+          ["현금·예금 잔액", "cashBalance"],
+        ]
+          .map(
+            ([label, key]) =>
+              '<div class="card" role="button" tabindex="0" data-metric="' +
+              key +
+              '"><small>' +
+              label +
+              "</small><strong>" +
+              M(report[key]) +
+              "</strong></div>",
+          )
+          .join("") +
+        "</div>"
+      );
+    }
+    async function load() {
+      message("");
+      try {
+        if (projected()) {
+          if (!["대시보드", "재무상태표", "재무상태 보고서"].includes(page))
+            page = "대시보드";
+          report = await api(
+            (publicMode ? publicBase + "/data" : "/api/public-preview") +
+              period(),
+          );
+          timeline = [];
+          comparison = {};
+          recent = {};
+          data = {};
+          gifts = [];
+          $("scope").textContent = "개인정보 없는 공개용 · 읽기 전용";
+          $("nav").innerHTML = ["대시보드", "재무상태표", "재무상태 보고서"]
+            .map((n) => '<button data-nav="' + n + '">' + n + "</button>")
+            .join("");
+          $("personlabel").hidden = true;
+          $("typelabel").hidden = true;
+        } else {
+          const me = await api("/api/me");
+          readOnly = !me.admin;
+          if (readOnly) {
+            [report, timeline, comparison, recent] = await Promise.all([
+              api("/api/report" + period()),
+              api("/api/timeline" + period()),
+              api("/api/comparison" + period()),
+              api("/api/recent" + period()),
+            ]);
+            data = {};
+            gifts = [];
+            $("nav").innerHTML = ["대시보드", "재무상태표", "재무상태 보고서"]
+              .map((n) => '<button data-nav="' + n + '">' + n + "</button>")
+              .join("");
+            if (!["대시보드", "재무상태표", "재무상태 보고서"].includes(page))
+              page = "대시보드";
+          } else {
+            [data, report, gifts, timeline, comparison, recent] =
+              await Promise.all([
+                api("/api/data"),
+                api("/api/report" + period()),
+                api(
+                  "/api/donations?from=" +
+                    ($("from").value.slice(0, 4) - 1) +
+                    "-01-01&to=" +
+                    $("to").value.slice(0, 4) +
+                    "-12-31",
+                ),
+                api("/api/timeline" + period()),
+                api("/api/comparison" + period()),
+                api("/api/recent" + period()),
+              ]);
+            $("logout").hidden = false;
+            $("nav").innerHTML = names
+              .map((n) => '<button data-nav="' + n + '">' + n + "</button>")
+              .join("");
+            const old = $("person").value,
+              t = $("giftType").value;
+            $("person").innerHTML =
+              '<option value="">전체</option><option value="unallocated">미배분 그룹 헌금</option>' +
+              (data.contacts || [])
+                .map(
+                  (c) =>
+                    '<option value="' + c.ID + '">' + esc(c.NAME) + "</option>",
+                )
+                .join("");
+            $("person").value = old;
+            $("giftType").innerHTML =
+              '<option value="">전체</option>' +
+              (data.types || [])
+                .map(
+                  (t) =>
+                    '<option value="' + t.ID + '">' + esc(t.NAME) + "</option>",
+                )
+                .join("");
+            $("giftType").value = t;
+          }
+        }
+        $("login").hidden = true;
+        $("app").hidden = false;
+        $("logout").hidden = publicMode;
+        render();
+      } catch (e) {
+        message(e);
+      }
+    }
+    function filteredGifts() {
+      return gifts.filter(
+        (g) =>
+          g.DATE >= $("from").value &&
+          g.DATE <= $("to").value &&
+          (!$("person").value ||
+            ($("person").value === "unallocated"
+              ? !g.CONTACT_ID
+              : String(g.CONTACT_ID) === $("person").value)) &&
+          (!$("giftType").value || String(g.TYPE_ID) === $("giftType").value),
+      );
+    }
+    const giftAmount = (g) => BigInt(g.SHARE ?? g.AMOUNT);
+    function group(rows, label, amount) {
+      const map = new Map();
+      rows.forEach((r) => {
+        const key = label(r);
+        map.set(key, (map.get(key) || 0n) + amount(r));
+      });
+      return [...map]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([label, n]) => ({ label, value: String(n) }));
+    }
+    function chart(
+      title,
+      rows,
+      keys = [["value", "금액"]],
+      onClick = null,
+      initial = "bar",
+    ) {
+      const stock = keys.some(([k]) =>
+        ["assets", "liabilities", "netAssets"].includes(k),
+      );
+      if (rows.length && rows.every((r) => /^\d{4}-\d{2}$/.test(r.label))) {
+        const groups = new Map();
+        for (const r of rows) {
+          const label =
+            $("grain").value === "year"
+              ? r.label.slice(0, 4)
+              : $("grain").value === "quarter"
+                ? r.label.slice(0, 4) + "-Q" + Math.ceil(+r.label.slice(5) / 3)
+                : r.label;
+          if (!groups.has(label)) groups.set(label, { label });
+          const target = groups.get(label);
+          for (const [k] of keys)
+            target[k] = stock
+              ? String(r[k] || 0)
+              : String(BigInt(target[k] || 0) + BigInt(r[k] || 0));
+        }
+        rows = [...groups.values()];
+        if ($("cumulative").checked && !stock) {
+          const totals = {};
+          rows = rows.map((r) => {
+            const n = { ...r };
+            for (const [k] of keys) {
+              totals[k] = (totals[k] || 0n) + BigInt(r[k] || 0);
+              n[k] = String(totals[k]);
+            }
+            return n;
+          });
+        }
+      }
+      const id = "chart-" + ++chartId;
+      charts.set(id, { rows, keys, onClick, title });
+      return (
+        '<section class="card" id="' +
+        id +
+        '"><h2>' +
+        esc(title) +
+        '</h2><div class="actions no-print"><select data-chart-kind="' +
+        id +
+        '">' +
+        [
+          ["bar", "막대"],
+          ["line", "꺾은선"],
+          ["mixed", "막대 + 꺾은선"],
+          ["stack", "누적 막대"],
+          ["pie", "원형"],
+          ["donut", "도넛"],
+        ]
+          .map(
+            ([v, n]) =>
+              "<option " +
+              (v === initial ? "selected" : "") +
+              ' value="' +
+              v +
+              '">' +
+              n +
+              "</option>",
+          )
+          .join("") +
+        '</select><select data-chart-view="' +
+        id +
+        '"><option value="both">표 + 그래프</option><option value="only-table">표만</option><option value="only-chart">그래프만</option></select><button data-save-chart="' +
+        id +
+        '">이미지 저장</button><label><input type="checkbox" data-values="' +
+        id +
+        '">값 표시</label></div><div class="legend">' +
+        keys
+          .map(
+            ([k, n], i) =>
+              '<label><input type="checkbox" data-series="' +
+              id +
+              '" value="' +
+              k +
+              '" checked><span style="color:' +
+              ["#2596cc", "#d58e67", "#61a58c", "#a58bc4"][i % 4] +
+              '">●</span>' +
+              esc(n) +
+              "</label>",
+          )
+          .join("") +
+        '</div><p class="muted chart-note" hidden></p><div class="chart"></div><div class="chart-table">' +
+        table(
+          ["항목", ...keys.map((x) => x[1])],
+          rows.map((r, i) => [
+            '<button class="text" data-point="' +
+              i +
+              '" data-parent="' +
+              id +
+              '">' +
+              esc(r.label) +
+              "</button>",
+            ...keys.map(([k]) => M(r[k] || 0)),
+          ]),
+        ) +
+        "</div></section>"
+      );
+    }
+    function draw(id) {
+      const c = charts.get(id),
+        box = $(id);
+      if (!box) return;
+      const kind = box.querySelector("[data-chart-kind]").value,
+        keys = c.keys.filter(
+          ([k]) =>
+            box.querySelector('[data-series][value="' + k + '"]').checked,
+        ),
+        rows = c.rows;
+      if (!rows.length || !keys.length) {
+        box.querySelector(".chart").innerHTML =
+          '<p class="muted">표시할 자료가 없습니다.</p>';
+        return;
+      }
+      const W = 900,
+        H = 300,
+        left = 70,
+        bottom = rows.some((r) => keys.some(([k]) => BigInt(r[k] || 0) < 0n))
+          ? 150
+          : 250,
+        palette = [
+          "#2596cc",
+          "#d58e67",
+          "#61a58c",
+          "#a58bc4",
+          "#dbad4d",
+          "#5d819b",
+        ];
+      let svg =
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' +
+          W +
+          " " +
+          H +
+          '" role="img" aria-label="' +
+          esc(c.title) +
+          '">',
+        max = 1n;
+      rows.forEach((r) => {
+        let sum = 0n;
+        keys.forEach(([k]) => {
+          const n = BigInt(r[k] || 0);
+          if ((n < 0n ? -n : n) > max) max = n < 0n ? -n : n;
+          sum += n;
+        });
+        if (kind === "stack") {
+          const pos = keys.reduce(
+              (n, [k]) => n + (BigInt(r[k] || 0) > 0n ? BigInt(r[k]) : 0n),
+              0n,
+            ),
+            neg = keys.reduce(
+              (n, [k]) => n + (BigInt(r[k] || 0) < 0n ? -BigInt(r[k]) : 0n),
+              0n,
+            );
+          if (pos > max) max = pos;
+          if (neg > max) max = neg;
+        }
+      });
+      const height = (n) =>
+          Number((BigInt(n || 0) * (bottom === 150 ? 100n : 200n)) / max),
+        showValues = box.querySelector("[data-values]").checked;
+      const note = box.querySelector(".chart-note");
+      note.hidden = !(kind === "pie" || kind === "donut");
+      note.textContent =
+        "선택한 첫 계열 (" +
+        keys[0][1] +
+        ")의 구성비입니다. 표에서 전체 계열을 확인할 수 있습니다.";
+      if (kind === "pie" || kind === "donut") {
+        const total = rows.reduce((s, r) => s + BigInt(r[keys[0][0]] || 0), 0n);
+        if (total <= 0n || rows.some((r) => BigInt(r[keys[0][0]] || 0) < 0n)) {
+          box.querySelector(".chart").innerHTML =
+            '<p class="muted">0 또는 음수 구성비는 원형 대신 막대·꺾은선으로 확인하세요.</p>';
+          return;
+        }
+        let angle = 0;
+        rows.forEach((r, i) => {
+          const fraction =
+              Number((BigInt(r[keys[0][0]] || 0) * 1000000n) / total) / 1000000,
+            a = angle,
+            b = angle + fraction * Math.PI * 2;
+          angle = b;
+          const x = (a) => 450 + 110 * Math.cos(a - Math.PI / 2),
+            y = (a) => 140 + 110 * Math.sin(a - Math.PI / 2);
+          if (fraction >= 0.999999)
+            svg +=
+              '<circle cx="450" cy="140" r="110" fill="' +
+              palette[i % palette.length] +
+              '" data-point="' +
+              i +
+              '"><title>' +
+              esc(r.label) +
+              " " +
+              M(r[keys[0][0]]) +
+              "</title></circle>";
+          else
+            svg +=
+              '<path d="M450,140 L' +
+              x(a) +
+              "," +
+              y(a) +
+              " A110,110 0 " +
+              (fraction > 0.5 ? 1 : 0) +
+              ",1 " +
+              x(b) +
+              "," +
+              y(b) +
+              ' Z" fill="' +
+              palette[i % palette.length] +
+              '" data-point="' +
+              i +
+              '"><title>' +
+              esc(r.label) +
+              " " +
+              M(r[keys[0][0]]) +
+              "</title></path>";
+          if (showValues && fraction > 0) {
+            const mid = (a + b) / 2;
+            svg +=
+              '<text x="' +
+              (450 + 125 * Math.cos(mid - Math.PI / 2)) +
+              '" y="' +
+              (140 + 125 * Math.sin(mid - Math.PI / 2)) +
+              '" font-size="10" text-anchor="middle">' +
+              esc(r.label) +
+              " " +
+              M(r[keys[0][0]]) +
+              "</text>";
+          }
+        });
+        if (kind === "donut")
+          svg +=
+            '<circle cx="450" cy="140" r="65" fill="white"/><text x="450" y="145" text-anchor="middle">' +
+            money(total) +
+            "</text>";
+      } else {
+        svg +=
+          '<path d="M' +
+          left +
+          ",20 V" +
+          bottom +
+          ' H880" stroke="#cbd8e0" fill="none"/>';
+        const step = 800 / Math.max(rows.length, 1);
+        keys.forEach(([key, name], ki) => {
+          const line =
+            kind === "line" || (kind === "mixed" && ki === keys.length - 1);
+          let points = [];
+          rows.forEach((r, i) => {
+            const v = BigInt(r[key] || 0),
+              h = height(v),
+              x = left + step * (i + 0.5),
+              y = bottom - h;
+            const title = esc(r.label + " · " + name + " " + M(v));
+            if (line) {
+              points.push(x + "," + y);
+              svg +=
+                '<circle cx="' +
+                x +
+                '" cy="' +
+                y +
+                '" r="5" fill="' +
+                palette[ki % 6] +
+                '" data-point="' +
+                i +
+                '"><title>' +
+                title +
+                "</title></circle>";
+            } else {
+              const prev =
+                  kind === "stack"
+                    ? keys
+                        .slice(0, ki)
+                        .reduce(
+                          (s, [k]) =>
+                            s +
+                            (BigInt(r[k] || 0) < 0n === v < 0n
+                              ? BigInt(r[k] || 0)
+                              : 0n),
+                          0n,
+                        )
+                    : 0n,
+                bw = Math.max(
+                  1,
+                  Math.min(45, step / (kind === "stack" ? 1 : keys.length + 1)),
+                );
+              svg +=
+                '<rect x="' +
+                (kind === "stack" ? x - bw / 2 : x - step * 0.3 + ki * bw) +
+                '" y="' +
+                (bottom - height(prev) - Math.max(h, 0)) +
+                '" width="' +
+                bw +
+                '" height="' +
+                Math.abs(h) +
+                '" fill="' +
+                palette[ki % 6] +
+                '" data-point="' +
+                i +
+                '" tabindex="0"><title>' +
+                title +
+                "</title></rect>";
+            }
+            if (showValues)
+              svg +=
+                '<text x="' +
+                x +
+                '" y="' +
+                (y - 8) +
+                '" font-size="9" text-anchor="middle">' +
+                money(v) +
+                "</text>";
+            if (ki === 0 && i % Math.max(1, Math.ceil(rows.length / 12)) === 0)
+              svg +=
+                '<text x="' +
+                x +
+                '" y="275" font-size="10" text-anchor="middle">' +
+                esc(r.label) +
+                "</text>";
+          });
+          if (line)
+            svg +=
+              '<polyline points="' +
+              points.join(" ") +
+              '" fill="none" stroke="' +
+              palette[ki % 6] +
+              '" stroke-width="2"/>';
+        });
+      }
+      box.querySelector(".chart").innerHTML = svg + "</svg>";
+      box
+        .querySelectorAll("svg [data-point]")
+        .forEach((n) => (n.onclick = () => drill(id, +n.dataset.point)));
+    }
+    function drill(id, index) {
+      const c = charts.get(id);
+      if (c.onClick) c.onClick(c.rows[index]);
+      else
+        modal(
+          c.title,
+          table(
+            ["항목", ...c.keys.map((x) => x[1])],
+            [
+              [
+                esc(c.rows[index].label),
+                ...c.keys.map(([k]) => M(c.rows[index][k] || 0)),
+              ],
+            ],
+          ),
+        );
+    }
+    function render() {
+      chartId = 0;
+      charts.clear();
+      $("heading").textContent = page;
+      $("print-period").textContent =
+        $("from").value +
+        " ~ " +
+        $("to").value +
+        " · 생성 " +
+        new Date().toLocaleDateString("ko-KR");
+      document
+        .querySelectorAll("[data-nav]")
+        .forEach((b) => b.classList.toggle("active", b.dataset.nav === page));
+      $("personlabel").hidden =
+        projected() || readOnly || !["헌금 관리", "통계"].includes(page);
+      $("typelabel").hidden = $("personlabel").hidden;
+      let h = report.reviewCount
+        ? '<div class="notice">회계 연결 검토 필요 ' +
+          report.reviewCount +
+          "건입니다. 과거 원본 거래는 보존되어 있으며, 아래 복식부기 보고서는 연결을 확인한 분개 기준입니다.</div>"
+        : "";
+      if (["대시보드", "재무상태 보고서"].includes(page)) {
+        h += cards();
+        h += chart(
+          "수입·비용 흐름",
+          report.monthly || [],
+          [
+            ["income", "수입"],
+            ["expense", "비용"],
+            ["surplus", "운영결과"],
+          ],
+          (r) => monthRecords(r.label),
+          "mixed",
+        );
+        if (
+          !projected() &&
+          !(page === "재무상태 보고서" && $("detail").value === "summary")
+        ) {
+          h += chart(
+            "자산·부채·순자산 추이",
+            timeline,
+            [
+              ["assets", "자산"],
+              ["liabilities", "부채"],
+              ["netAssets", "순자산"],
+            ],
+            null,
+            "line",
+          );
+          h += chart(
+            "수입·비용 구성",
+            (report.categories || []).map((r) => ({
+              label: r.label
+                .replace(/^INCOME:/, "수익 · ")
+                .replace(/^EXPENSE:/, "비용 · "),
+              value: r.amount,
+              source: r.label,
+            })),
+            [["value", "금액"]],
+            (r) => accountDrill(r.source),
+          );
+          if (page === "대시보드") {
+            h += chart(
+              "최근 12개월 헌금",
+              recent.monthly || [],
+              [["offerings", "헌금"]],
+              (r) => {
+                setMonth(r.label);
+                page = "헌금 관리";
+                load();
+              },
+              "line",
+            );
+            h += chart(
+              "최근 12개월 수입·비용",
+              recent.monthly || [],
+              [
+                ["income", "수입"],
+                ["expense", "비용"],
+              ],
+              (r) => monthRecords(r.label),
+              "mixed",
+            );
+          }
+          if (page === "재무상태 보고서" && $("detail").value === "full") {
+            h += chart(
+              "헌금 추이",
+              report.monthly || [],
+              [["offerings", "헌금"]],
+              (r) => {
+                setMonth(r.label);
+                page = "헌금 관리";
+                load();
+              },
+              "line",
+            );
+            h += chart(
+              "수입 구성",
+              (report.categories || [])
+                .filter((r) => r.label.startsWith("INCOME:"))
+                .map((r) => ({
+                  label: r.label.slice(7),
+                  value: r.amount,
+                  source: r.label,
+                })),
+              [["value", "수입"]],
+              (r) => accountDrill(r.source),
+              "donut",
+            );
+            h += chart(
+              "지출 구성",
+              (report.categories || [])
+                .filter((r) => r.label.startsWith("EXPENSE:"))
+                .map((r) => ({
+                  label: r.label.slice(8),
+                  value: r.amount,
+                  source: r.label,
+                })),
+              [["value", "비용"]],
+              (r) => accountDrill(r.source),
+              "donut",
+            );
+            h += chart(
+              "기간 비교",
+              [
+                { label: "현재", ...report },
+                { label: "이전 비교 기간", ...comparison.previous },
+                { label: "전년 같은 기간", ...comparison.lastYear },
+              ],
+              [
+                ["income", "수입"],
+                ["expense", "비용"],
+                ["offeringsTotal", "헌금"],
+                ["assets", "자산"],
+                ["liabilities", "부채"],
+                ["netAssets", "순자산"],
+                ["surplus", "운영결과"],
+              ],
+            );
+            h +=
+              '<section class="card"><h2>기간 비교</h2>' +
+              table(
+                [
+                  "항목",
+                  "현재",
+                  "이전 비교 기간",
+                  "전년 같은 기간",
+                  "전년 대비",
+                ],
+                [
+                  "income",
+                  "expense",
+                  "offeringsTotal",
+                  "assets",
+                  "liabilities",
+                  "netAssets",
+                  "surplus",
+                ].map((k, i) => {
+                  const a = BigInt(report[k]),
+                    b = BigInt(comparison.lastYear?.[k] || 0),
+                    diff = a - b;
+                  return [
+                    [
+                      "수입",
+                      "비용",
+                      "헌금",
+                      "자산",
+                      "부채",
+                      "순자산",
+                      "운영결과",
+                    ][i],
+                    M(a),
+                    M(comparison.previous?.[k] || 0),
+                    M(b),
+                    (diff < 0n ? "▼ " : "▲ ") +
+                      M(diff < 0n ? -diff : diff) +
+                      (b === 0n
+                        ? " (비교 기준 0)"
+                        : ` (${Number((diff * 10000n) / (b < 0n ? -b : b)) / 100}%)`),
+                  ];
+                }),
+              ) +
+              "</section>";
+          }
+        } else
+          h += chart(
+            "헌금 종류별 합계",
+            (report.offerings || []).map((r) => ({
+              label: r.label,
+              value: r.amount,
+            })),
+            [["value", "헌금"]],
+            null,
+            "donut",
+          );
+        const composition = projected()
+          ? report.composition || []
+          : (report.accounts || [])
+              .filter((a) => ["ASSET", "LIABILITY"].includes(a.TYPE))
+              .map((a) => ({
+                label: a.TYPE + ":" + a.NAME,
+                amount: String(
+                  BigInt(a.BALANCE) * (a.TYPE === "ASSET" ? 1n : -1n),
+                ),
+              }));
+        if (page === "재무상태 보고서")
+          h += chart(
+            "자산 구성",
+            composition
+              .filter((r) => r.label.startsWith("ASSET:"))
+              .map((r) => ({ label: r.label.slice(6), value: r.amount })),
+            [["value", "자산"]],
+            null,
+            "donut",
+          );
+        if (
+          page === "재무상태 보고서" &&
+          $("detail").value === "full" &&
+          BigInt(report.liabilities) !== 0n
+        )
+          h += chart(
+            "부채 구성",
+            composition
+              .filter((r) => r.label.startsWith("LIABILITY:"))
+              .map((r) => ({ label: r.label.slice(10), value: r.amount })),
+            [["value", "부채"]],
+            null,
+            "donut",
+          );
+        else if (BigInt(report.liabilities) === 0n)
+          h += '<div class="notice">현재 등록된 부채가 없습니다.</div>';
+        h +=
+          '<section class="card"><h2>재정 요약</h2><p>' +
+          esc(
+            report.summary ||
+              `${$("to").value} 기준 자산 ${M(report.assets)}, 부채 ${M(report.liabilities)}, 순자산 ${M(report.netAssets)}입니다.`,
+          ) +
+          "</p></section>";
+        if (page === "재무상태 보고서" && $("detail").value === "full")
+          h += balanceTable();
+      } else if (page === "재무상태표") h += balanceTable();
+      else if (page === "거래") {
+        const rows = (data.records || []).filter(
+          (r) => r.DATE >= $("from").value && r.DATE <= $("to").value,
+        );
+        h +=
+          '<section class="card"><div class="actions"><button data-new-record>수입·지출 입력</button><button data-new-journal>전문 회계 입력 / 기초잔액</button></div><p class="muted">일반 입력은 자동 분개합니다. 과거 REVIEW 거래는 계정을 확인해야 합니다. 거래를 클릭하면 차변·대변과 원본을 확인합니다.</p>' +
+          table(
+            ["일자", "구분", "내역", "금액", "회계 상태", "상세"],
+            rows.map((r) => [
+              esc(r.DATE),
+              esc(r.TYPE === "INCOME" ? "수입" : "지출"),
+              esc(r.DESCRIPTION),
+              M(r.AMOUNT),
+              esc(r.STATUS || "REVIEW"),
+              '<button data-record="' + r.ID + '">분개·헌금 연결</button>',
+            ]),
+          ) +
+          '</section><section class="card"><h2>분개 원장 · 정정 이력 포함</h2>' +
+          table(
+            ["일자", "적요", "상태", "상세"],
+            (data.entries || [])
+              .filter(
+                (e) =>
+                  e.ENTRY_DATE >= $("from").value &&
+                  e.ENTRY_DATE <= $("to").value,
+              )
+              .map((e) => [
+                esc(e.ENTRY_DATE),
+                esc(e.MEMO),
+                e.REVERSES_ID ? "역분개" : e.REVERSED ? "취소·정정됨" : "유효",
+                '<button data-entry="' + e.ID + '">분개 조회</button>',
+              ]),
+          ) +
+          "</section>";
+      } else if (page === "헌금 관리" || page === "통계") {
+        const gs = filteredGifts(),
+          total = gs.reduce((n, g) => n + giftAmount(g), 0n);
+        h +=
+          '<div class="notice">현재 필터 헌금 합계 <b>' +
+          M(total) +
+          "</b> · 공동 헌금은 개인 배분이 확인될 때까지 미배분 그룹으로 표시합니다.</div>";
+        h += chart(
+          "월별 헌금",
+          group(gs, (g) => g.DATE.slice(0, 7), giftAmount),
+          [["value", "헌금"]],
+          (r) => {
+            setMonth(r.label);
+            render();
+          },
+          "line",
+        );
+        h += chart(
+          "헌금 종류 구성",
+          group(gs, (g) => g.TYPE_NAME, giftAmount),
+          [["value", "헌금"]],
+          (r) => {
+            const type = data.types.find((t) => t.NAME === r.label);
+            $("giftType").value = type ? type.ID : "";
+            render();
+          },
+          "donut",
+        );
+        h += chart(
+          "개인별 헌금",
+          group(
+            gs,
+            (g) =>
+              g.CONTACT_ID
+                ? g.CONTACT_NAME + " (#" + g.CONTACT_ID + ")"
+                : "미배분 그룹 헌금",
+            giftAmount,
+          ),
+          [["value", "헌금"]],
+          (r) => {
+            const donor = (data.contacts || []).find((x) =>
+              r.label.endsWith("(#" + x.ID + ")"),
+            );
+            $("person").value = donor ? donor.ID : "unallocated";
+            render();
+          },
+        );
+        h +=
+          '<section class="card"><h2>개인별 연간 헌금표</h2>' +
+          annual(gs) +
+          "</section>";
+        h +=
+          '<section class="card"><div class="actions"><h2>헌금 내역</h2><button data-new-gift>헌금 입력</button><button data-new-type>헌금 종류 추가</button></div>' +
+          table(
+            ["일자", "헌금자", "헌금 종류", "금액", "상세"],
+            gs.map((g) => [
+              esc(g.DATE),
+              esc(g.CONTACT_NAME || "미배분 그룹 헌금"),
+              esc(g.TYPE_NAME),
+              M(giftAmount(g)),
+              '<button data-record="' + g.ID + '">조회·정정</button>',
+            ]),
+          ) +
+          "</section>";
+      } else if (page === "헌금자") {
+        h +=
+          '<section class="card"><div class="actions"><button data-new-contact>헌금자 추가</button><label>이름 검색<input id="contactSearch" placeholder="이름" oninput="filterContacts(this.value)"></label></div>' +
+          table(
+            ["이름", "메모", "등록일", "상태", "관리"],
+            (data.contacts || []).map((c) => [
+              esc(c.NAME),
+              esc(c.REMARKS),
+              esc(c.CREATED_AT || ""),
+              c.IS_HIDDEN ? "비활성" : "활성",
+              '<button data-contact="' + c.ID + '">수정·비활성화</button>',
+            ]),
+            'id="contactsTable"',
+          ) +
+          "</section>";
+      } else if (page === "계정과목") {
+        h +=
+          '<section class="card"><div class="actions"><button data-new-account>계정 추가</button><button data-new-type>헌금 종류 추가</button></div>' +
+          table(
+            ["코드", "계정과목", "유형", "상태", "관리"],
+            (data.accounts || []).map((a) => [
+              esc(a.CODE),
+              esc(a.NAME),
+              esc(typeName(a.TYPE)),
+              a.ACTIVE ? "활성" : "비활성",
+              '<button data-account="' + a.ID + '">수정</button>',
+            ]),
+          ) +
+          "<h2>헌금 종류</h2>" +
+          table(
+            ["헌금 종류", "상태", "관리"],
+            (data.types || []).map((t) => [
+              esc(t.NAME),
+              t.ACTIVE ? "활성" : "비활성",
+              '<button data-type="' + t.ID + '">수정</button>',
+            ]),
+          ) +
+          "</section>";
+      } else if (page === "외부 조회")
+        h +=
+          '<section class="card"><h2>개인정보 없는 공개용 화면</h2><p>이름·ID·개인별 금액·메모를 제외한 집계 전용 서버입니다. 공개 사용자는 변경 API에 접근할 수 없습니다.</p><div class="actions"><button data-share="true">공개 ON</button><button data-share="false">공개 OFF</button><button data-share-info>현재 공유 주소 확인</button></div><p id="shareResult">공개 시 포트 8766으로 같은 네트워크에서 접근할 수 있습니다. 외부 인터넷 공개에는 별도 HTTPS·네트워크 구성이 필요합니다.</p></section>';
+      $("content").innerHTML = h;
+      charts.forEach((_, id) => draw(id));
+    }
+    function balanceTable() {
+      const as = report.accounts || [];
+      return (
+        '<section class="card"><h2>재무상태표 · ' +
+        esc($("to").value) +
+        '</h2><div class="notice">자산 ' +
+        M(report.assets) +
+        " = 부채 " +
+        M(report.liabilities) +
+        " + 순자산 " +
+        M(report.netAssets) +
+        " · 검증 차이 " +
+        M(report.difference) +
+        "</div>" +
+        (projected()
+          ? table(
+              ["구분", "금액"],
+              [
+                ["자산", M(report.assets)],
+                ["부채", M(report.liabilities)],
+                ["순자산", M(report.netAssets)],
+              ],
+            )
+          : table(
+              ["구분", "계정과목", "금액"],
+              ["ASSET", "LIABILITY", "EQUITY"].flatMap((t) => {
+                const accounts = as.filter((a) => a.TYPE === t),
+                  sum = accounts.reduce(
+                    (n, a) =>
+                      n + BigInt(a.BALANCE) * (t === "ASSET" ? 1n : -1n),
+                    0n,
+                  );
+                return [
+                  ...accounts.map((a) => [
+                    typeName(t),
+                    esc(a.NAME),
+                    M(BigInt(a.BALANCE) * (t === "ASSET" ? 1n : -1n)),
+                  ]),
+                  ...(t === "EQUITY"
+                    ? [
+                        [
+                          typeName(t),
+                          "미처분 누적 운영결과",
+                          M(BigInt(report.netAssets) - sum),
+                        ],
+                      ]
+                    : []),
+                  [
+                    "<b>" + typeName(t) + " 총계</b>",
+                    "",
+                    "<b>" +
+                      M(
+                        report[
+                          {
+                            ASSET: "assets",
+                            LIABILITY: "liabilities",
+                            EQUITY: "netAssets",
+                          }[t]
+                        ],
+                      ) +
+                      "</b>",
+                  ],
+                ];
+              }),
+            )) +
+        (BigInt(report.liabilities) === 0n
+          ? "<p>현재 등록된 부채가 없습니다.</p>"
+          : "") +
+        "<p>수익·비용 누계 운영결과는 순자산에 포함됩니다.</p></section>"
+      );
+    }
+    function annual(gs) {
+      const people = new Map();
+      gs.forEach((g) => {
+        const donor = g.CONTACT_ID || "unallocated",
+          id = donor + "|" + g.DATE.slice(0, 4);
+        if (!people.has(id))
+          people.set(id, {
+            donor,
+            year: g.DATE.slice(0, 4),
+            name: g.CONTACT_NAME || "미배분 그룹 헌금",
+            months: Array(12).fill(0n),
+          });
+        people.get(id).months[+g.DATE.slice(5, 7) - 1] += giftAmount(g);
+      });
+      return table(
+        [
+          "헌금자",
+          ...Array.from({ length: 12 }, (_, i) => i + 1 + "월"),
+          "조회 합계",
+        ],
+        [...people].map(([id, p]) => [
+          esc(p.name + " · " + p.year),
+          ...p.months.map(
+            (n, i) =>
+              '<button data-donor="' +
+              p.donor +
+              '" data-year="' +
+              p.year +
+              '" data-month="' +
+              (i + 1) +
+              '">' +
+              money(n) +
+              "</button>",
+          ),
+          M(p.months.reduce((a, b) => a + b, 0n)),
+        ]),
+      );
+    }
+    function setMonth(m) {
+      if (/^\d{4}$/.test(m)) {
+        $("from").value = m + "-01-01";
+        $("to").value = m + "-12-31";
+        return;
+      }
+      if (m.includes("-Q")) {
+        const year = +m.slice(0, 4),
+          q = +m.at(-1);
+        $("from").value =
+          year + "-" + String(q * 3 - 2).padStart(2, "0") + "-01";
+        $("to").value = new Date(year, q * 3, 0).toLocaleDateString("sv-SE");
+        return;
+      }
+      $("from").value = m + "-01";
+      $("to").value = new Date(
+        +m.slice(0, 4),
+        +m.slice(5, 7),
+        0,
+      ).toLocaleDateString("sv-SE");
+    }
+    function monthRecords(m) {
+      if (projected()) return;
+      setMonth(m);
+      page = "거래";
+      load();
+    }
+    function filterContacts(v) {
+      document
+        .querySelectorAll("#contactsTable tbody tr")
+        .forEach(
+          (r) =>
+            (r.hidden = !r.textContent.toLowerCase().includes(v.toLowerCase())),
+        );
+    }
+    const opt = (rows, value, label, selected = "") =>
+      rows
+        .map(
+          (r) =>
+            '<option value="' +
+            esc(r[value]) +
+            '" ' +
+            (String(r[value]) === String(selected) ? "selected" : "") +
+            ">" +
+            esc(r[label]) +
+            "</option>",
+        )
+        .join("");
+    const field = (label, name, value = "", type = "text") =>
+      "<label>" +
+      label +
+      '<input name="' +
+      name +
+      '" value="' +
+      esc(value) +
+      '" type="' +
+      type +
+      '" ' +
+      (name === "memo" || name.startsWith("allocation-") ? "" : "required") +
+      "></label>";
+    const select = (label, name, options) =>
+      "<label>" +
+      label +
+      '<select name="' +
+      name +
+      '">' +
+      options +
+      "</select></label>";
+    function form(title, operation, fields, hidden = {}) {
+      modal(
+        title,
+        '<form id="editForm" class="form">' +
+          fields +
+          '<button class="primary full">저장</button></form>',
+      );
+      $("editForm").onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          const fd = new FormData(e.target),
+            body = { operation, ...hidden, ...Object.fromEntries(fd) };
+          if (fd.has("contacts")) body.contacts = fd.getAll("contacts");
+          if (body.active !== undefined) body.active = body.active === "true";
+          if (body.offering === "") body.offering = null;
+          await api("/api/write", body);
+          $("modal").close();
+          await load();
+        } catch (x) {
+          message(x);
+          alert(x.message);
+        }
+      };
+    }
+    function contactPicker(r) {
+      const selected = r
+        ? data.recordContacts
+            .filter((c) => c.FINANCIAL_RECORD_ID === r.ID)
+            .map((c) => String(c.CONTACT_ID))
+        : [];
+      return (
+        '<label>헌금자 / 수취인 (공동 헌금은 여러 명 선택)<select name="contacts" multiple required>' +
+        data.contacts
+          .filter((c) => !c.IS_HIDDEN || selected.includes(String(c.ID)))
+          .map(
+            (c) =>
+              '<option value="' +
+              c.ID +
+              '" ' +
+              (selected.includes(String(c.ID)) ? "selected" : "") +
+              ">" +
+              esc(c.NAME) +
+              "</option>",
+          )
+          .join("") +
+        "</select></label>"
+      );
+    }
+    function recordForm(gift = false, r = null) {
+      const kind = r?.TYPE || "INCOME";
+      form(
+        gift ? "헌금 입력" : "수입·지출 입력",
+        "record",
+        select(
+          "구분",
+          "kind",
+          opt(
+            [
+              { v: "INCOME", n: "수입" },
+              { v: "EXPENSE", n: "지출" },
+            ],
+            "v",
+            "n",
+            kind,
+          ),
+        ) +
+          select(
+            "회계 연도",
+            "year",
+            opt(data.years, "ID", "NAME", r?.FISCAL_YEAR_ID),
+          ) +
+          field("일자", "date", r?.DATE || $("to").value, "date") +
+          field("금액 (원)", "amount", r?.AMOUNT || "", "number") +
+          select(
+            "예산 (구분과 일치해야 함)",
+            "budget",
+            opt(
+              data.budgets.filter(
+                (b) => !data.budgets.some((x) => x.PARENT_ID === b.ID),
+              ),
+              "ID",
+              "NAME",
+              r?.BUDGET_ID,
+            ),
+          ) +
+          contactPicker(r) +
+          select(
+            "자산 계정",
+            "asset",
+            opt(
+              data.accounts.filter((a) => a.ACTIVE && a.TYPE === "ASSET"),
+              "ID",
+              "NAME",
+              r?.ASSET_ID || data.accounts.find((a) => a.CODE === "1100")?.ID,
+            ),
+          ) +
+          select(
+            "수익 / 비용 계정",
+            "counterpart",
+            opt(
+              data.accounts.filter(
+                (a) => a.ACTIVE && ["INCOME", "EXPENSE"].includes(a.TYPE),
+              ),
+              "ID",
+              "NAME",
+              r?.COUNTERPART_ID ||
+                data.accounts.find((a) => a.CODE === (gift ? "4000" : "4900"))
+                  ?.ID,
+            ),
+          ) +
+          select(
+            "헌금 종류 (일반 수입·지출은 없음)",
+            "offering",
+            '<option value="">없음</option>' +
+              opt(
+                data.types.filter((t) => t.ACTIVE),
+                "ID",
+                "NAME",
+                r?.OFFERING_TYPE_ID || (gift ? data.types[0]?.ID : ""),
+              ),
+          ) +
+          field("메모 / 내용", "memo", r?.DESCRIPTION || ""),
+        r ? { id: r.ID } : {},
+      );
+    }
+    function recordDetail(id) {
+      const r = data.records.find((r) => String(r.ID) === String(id));
+      if (!r) return;
+      const contacts = data.recordContacts.filter(
+          (c) => c.FINANCIAL_RECORD_ID === r.ID,
+        ),
+        lines = data.lines.filter((l) => l.ENTRY_ID === r.ENTRY_ID);
+      modal(
+        "거래 상세 · " + r.DATE,
+        "<p>" +
+          esc(r.DESCRIPTION) +
+          " · " +
+          M(r.AMOUNT) +
+          "</p>" +
+          table(
+            ["계정", "차변", "대변"],
+            lines.map((l) => [esc(l.ACCOUNT_NAME), M(l.DEBIT), M(l.CREDIT)]),
+          ) +
+          '<p class="muted">공동 헌금은 개인 배분을 입력하지 않으면 개인별 합계를 추정하지 않습니다.</p><form id="classify" class="form">' +
+          select(
+            "자산 계정",
+            "asset",
+            opt(
+              data.accounts.filter((a) => a.ACTIVE && a.TYPE === "ASSET"),
+              "ID",
+              "NAME",
+              r.ASSET_ID,
+            ),
+          ) +
+          select(
+            "상대 계정",
+            "counterpart",
+            opt(
+              data.accounts.filter(
+                (a) =>
+                  a.ACTIVE &&
+                  a.TYPE === (r.TYPE === "INCOME" ? "INCOME" : "EXPENSE"),
+              ),
+              "ID",
+              "NAME",
+              r.COUNTERPART_ID,
+            ),
+          ) +
+          select(
+            "헌금 종류",
+            "offering",
+            '<option value="">헌금 아님</option>' +
+              opt(
+                data.types.filter(
+                  (t) => t.ACTIVE || t.ID === r.OFFERING_TYPE_ID,
+                ),
+                "ID",
+                "NAME",
+                r.OFFERING_TYPE_ID,
+              ),
+          ) +
+          (contacts.length > 1
+            ? contacts
+                .map((c) =>
+                  field(
+                    esc(c.CONTACT_NAME) + " 배분액",
+                    "allocation-" + c.CONTACT_ID,
+                    (data.allocations || []).find(
+                      (a) =>
+                        a.RECORD_ID === r.ID && a.CONTACT_ID === c.CONTACT_ID,
+                    )?.AMOUNT || "",
+                    "number",
+                  ),
+                )
+                .join("")
+            : "") +
+          '<button class="primary full">회계 연결 확인·정정</button></form><div class="actions"><button data-edit-record="' +
+          id +
+          '">거래 수정</button><button data-cancel-record="' +
+          id +
+          '">거래 취소</button></div>',
+      );
+      $("classify").onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          const b = {
+              operation: "classify",
+              id,
+              ...Object.fromEntries(new FormData(e.target)),
+            },
+            allocations = {};
+          for (const [k, v] of Object.entries(b))
+            if (k.startsWith("allocation-") && v !== "")
+              allocations[k.slice(11)] = v;
+          b.allocations = allocations;
+          if (b.offering === "") b.offering = null;
+          await api("/api/write", b);
+          $("modal").close();
+          await load();
+        } catch (x) {
+          alert(x.message);
+        }
+      };
+    }
+    function journalDetail(id) {
+      const entry = data.entries.find((e) => String(e.ID) === String(id));
+      if (!entry) return;
+      modal(
+        "분개 상세",
+        "<p>" +
+          esc(entry.ENTRY_DATE) +
+          " · " +
+          esc(entry.MEMO) +
+          "</p>" +
+          table(
+            ["계정", "차변", "대변"],
+            data.lines
+              .filter((l) => l.ENTRY_ID === entry.ID)
+              .map((l) => [esc(l.ACCOUNT_NAME), M(l.DEBIT), M(l.CREDIT)]),
+          ) +
+          (entry.SOURCE_RECORD_ID
+            ? '<button data-record="' +
+              entry.SOURCE_RECORD_ID +
+              '">원본 거래에서 정정·취소</button>'
+            : !entry.REVERSED && !entry.REVERSES_ID
+              ? '<button data-reverse-journal="' +
+                entry.ID +
+                '">역분개로 취소</button>'
+              : "<p>정정·취소 이력이 보존되어 있습니다.</p>"),
+      );
+    }
+    function ledgerModal(title, filter) {
+      if (projected() || readOnly) return;
+      const lines = (data.lines || []).filter(
+        (l) =>
+          l.ENTRY_DATE >= $("from").value &&
+          l.ENTRY_DATE <= $("to").value &&
+          filter(l),
+      );
+      modal(
+        title,
+        table(
+          ["일자", "계정", "적요", "차변", "대변", "상세"],
+          lines.map((l) => [
+            esc(l.ENTRY_DATE),
+            esc(l.ACCOUNT_NAME),
+            esc(l.MEMO),
+            M(l.DEBIT),
+            M(l.CREDIT),
+            '<button data-entry="' + l.ENTRY_ID + '">분개 조회</button>',
+          ]),
+        ),
+      );
+    }
+    function accountDrill(source) {
+      const account = (report.accounts || []).find(
+        (a) => a.TYPE + ":" + a.NAME === source,
+      );
+      if (account)
+        ledgerModal(account.NAME + " 거래", (l) => l.ACCOUNT_ID === account.ID);
+    }
+    function metricDrill(key) {
+      if (projected() || readOnly) return;
+      if (key === "offeringsTotal") {
+        page = "헌금 관리";
+        render();
+        return;
+      }
+      if (["income", "expense", "surplus"].includes(key)) {
+        const types =
+          key === "income"
+            ? ["INCOME"]
+            : key === "expense"
+              ? ["EXPENSE"]
+              : ["INCOME", "EXPENSE"];
+        const ids = (data.accounts || [])
+          .filter((a) => types.includes(a.TYPE))
+          .map((a) => a.ID);
+        ledgerModal("기간 수익·비용 분개", (l) => ids.includes(l.ACCOUNT_ID));
+      } else {
+        page = "재무상태표";
+        render();
+      }
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.target.dataset.metric && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        metricDrill(e.target.dataset.metric);
+      }
+    });
+    function accountForm(a = {}) {
+      form(
+        "계정과목 설정",
+        "account",
+        (a.ID ? "" : field("코드", "code", a.CODE || "")) +
+          field("계정명", "name", a.NAME || "") +
+          select(
+            "유형",
+            "type",
+            opt(
+              ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"].map(
+                (v) => ({
+                  v,
+                  n: {
+                    ASSET: "자산",
+                    LIABILITY: "부채",
+                    EQUITY: "순자산",
+                    INCOME: "수익",
+                    EXPENSE: "비용",
+                  }[v],
+                }),
+              ),
+              "v",
+              "n",
+              a.TYPE,
+            ),
+          ) +
+          select(
+            "상태",
+            "active",
+            '<option value="true">활성</option><option value="false" ' +
+              (a.ACTIVE === false ? "selected" : "") +
+              ">비활성</option>",
+          ),
+        a.ID ? { id: a.ID } : {},
+      );
+    }
+    function typeForm(t = {}) {
+      form(
+        "헌금 종류 설정",
+        "offeringType",
+        field("이름", "name", t.NAME || "") +
+          select(
+            "상태",
+            "active",
+            '<option value="true">활성</option><option value="false" ' +
+              (t.ACTIVE === false ? "selected" : "") +
+              ">비활성</option>",
+          ),
+        t.ID ? { id: t.ID } : {},
+      );
+    }
+    function contactForm(c = {}) {
+      form(
+        "헌금자 설정 · 과거 기록 유지",
+        "contact",
+        field("이름", "name", c.NAME || "") +
+          field("메모", "memo", c.REMARKS || "") +
+          select(
+            "상태",
+            "active",
+            '<option value="true">활성</option><option value="false" ' +
+              (c.IS_HIDDEN ? "selected" : "") +
+              ">비활성 (제거 대신 기록 보존)</option>",
+          ),
+        c.ID ? { id: c.ID } : {},
+      );
+    }
+    function journalForm() {
+      modal(
+        "전문 회계 입력 · 기초잔액",
+        '<form id="journal" class="form">' +
+          select("회계 연도", "year", opt(data.years, "ID", "NAME")) +
+          field("일자", "date", $("to").value, "date") +
+          field("적요", "memo", "수동 분개") +
+          '<div id="journalLines" class="full"></div><button type="button" id="addLine">행 추가</button><button class="primary">균형 분개 저장</button></form>',
+      );
+      function line() {
+        const div = document.createElement("div");
+        div.className = "form";
+        div.innerHTML =
+          select(
+            "계정",
+            "accountId",
+            opt(
+              data.accounts.filter((a) => a.ACTIVE),
+              "ID",
+              "NAME",
+            ),
+          ) +
+          field("차변", "debit", "0", "number") +
+          field("대변", "credit", "0", "number");
+        $("journalLines").append(div);
+      }
+      line();
+      line();
+      $("addLine").onclick = line;
+      $("journal").onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          const form = new FormData(e.target),
+            lines = [...$("journalLines").children].map((x) =>
+              Object.fromEntries(
+                [...x.querySelectorAll("input,select")].map((i) => [
+                  i.name,
+                  i.value,
+                ]),
+              ),
+            );
+          await api("/api/write", {
+            operation: "journal",
+            year: form.get("year"),
+            date: form.get("date"),
+            memo: form.get("memo"),
+            lines,
+          });
+          $("modal").close();
+          await load();
+        } catch (x) {
+          alert(x.message);
+        }
+      };
+    }
+    document.addEventListener("click", async (e) => {
+      const metric = e.target.closest("[data-metric]");
+      if (metric) {
+        metricDrill(metric.dataset.metric);
+        return;
+      }
+      const b = e.target.closest("button");
+      if (!b) return;
+      try {
+        if (b.dataset.nav) {
+          page = b.dataset.nav;
+          location.hash = page;
+          render();
+        } else if (b.dataset.point) drill(b.dataset.parent, +b.dataset.point);
+        else if (b.hasAttribute("data-new-record")) recordForm();
+        else if (b.hasAttribute("data-new-gift")) recordForm(true);
+        else if (b.hasAttribute("data-new-contact")) contactForm();
+        else if (b.hasAttribute("data-new-account")) accountForm();
+        else if (b.hasAttribute("data-new-type")) typeForm();
+        else if (b.hasAttribute("data-new-journal")) journalForm();
+        else if (b.dataset.entry) journalDetail(b.dataset.entry);
+        else if (
+          b.dataset.reverseJournal &&
+          confirm("원본 분개를 보존하고 역분개로 취소할까요?")
+        ) {
+          await api("/api/write", {
+            operation: "reverseJournal",
+            id: b.dataset.reverseJournal,
+          });
+          $("modal").close();
+          await load();
+        } else if (b.dataset.record) recordDetail(b.dataset.record);
+        else if (b.dataset.editRecord) {
+          $("modal").close();
+          recordForm(
+            false,
+            data.records.find((r) => String(r.ID) === b.dataset.editRecord),
+          );
+        } else if (
+          b.dataset.cancelRecord &&
+          confirm("기록을 보존하고 역분개로 취소할까요?")
+        ) {
+          await api("/api/write", {
+            operation: "cancel",
+            id: b.dataset.cancelRecord,
+          });
+          $("modal").close();
+          await load();
+        } else if (b.dataset.account)
+          accountForm(
+            data.accounts.find((a) => String(a.ID) === b.dataset.account),
+          );
+        else if (b.dataset.type)
+          typeForm(data.types.find((t) => String(t.ID) === b.dataset.type));
+        else if (b.dataset.contact)
+          contactForm(
+            data.contacts.find((c) => String(c.ID) === b.dataset.contact),
+          );
+        else if (b.dataset.donor) {
+          $("person").value = b.dataset.donor;
+          setMonth(
+            b.dataset.year + "-" + String(b.dataset.month).padStart(2, "0"),
+          );
+          render();
+        } else if (
+          b.dataset.share !== undefined ||
+          b.hasAttribute("data-share-info")
+        ) {
+          const j = b.hasAttribute("data-share-info")
+            ? await api("/api/share")
+            : await api("/api/write", {
+                operation: "share",
+                enabled: b.dataset.share === "true",
+              });
+          $("shareResult").textContent = j.enabled
+            ? "공개 ON · " + j.url + " · 같은 Wi-Fi/네트워크에서 열어 주세요."
+            : "공개 OFF";
+        } else if (b.dataset.saveChart) {
+          const svg = $(b.dataset.saveChart).querySelector("svg");
+          if (!svg) return;
+          const blob = new Blob([new XMLSerializer().serializeToString(svg)], {
+              type: "image/svg+xml",
+            }),
+            url = URL.createObjectURL(blob),
+            a = document.createElement("a");
+          a.href = url;
+          a.download = "사이교회-그래프.svg";
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      } catch (x) {
+        message(x);
+      }
+    });
+    document.addEventListener("change", (e) => {
+      const n = e.target;
+      if (n.dataset.chartKind) draw(n.dataset.chartKind);
+      else if (n.dataset.series) draw(n.dataset.series);
+      else if (n.dataset.values) draw(n.dataset.values);
+      else if (n.dataset.chartView)
+        $(n.dataset.chartView).className = "card " + n.value;
+    });
+    $("refresh").onclick = load;
+    $("person").onchange = render;
+    $("giftType").onchange = render;
+    $("detail").onchange = render;
+    $("audience").onchange = () => {
+      $("modal").close();
+      load();
+    };
+    if (publicMode) $("audienceLabel").hidden = true;
+    $("grain").onchange = render;
+    $("cumulative").onchange = render;
+    if (publicMode) page = "대시보드";
+    load();
+  </script>
+</html>

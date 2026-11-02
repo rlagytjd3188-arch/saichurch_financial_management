@@ -102,7 +102,12 @@ public class ContactServiceImpl implements ContactService {
         Contact contact = contactRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 관계자를 찾을 수 없습니다."));
 
-        validateDeletion(id);
+        if (financialRecordContactRepository.existsByContactId(id)) {
+            EntitySnapshot<Contact> oldSnapshot = entitySnapshotCapturer.capture(contact);
+            contact.setHidden(true);
+            activityLogService.logUpdate(oldSnapshot, contact);
+            return;
+        }
         activityLogService.logDeletion(contact);
 
         List<ContactGroupMember> members = contactGroupMemberRepository.findAllByContactId(id);

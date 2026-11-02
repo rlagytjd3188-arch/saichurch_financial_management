@@ -288,7 +288,7 @@ public class DatabaseRestoreView extends JDialog {
     private void chooseBackupFile() {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("백업 파일 선택");
-        chooser.setFileFilter(new FileNameExtensionFilter("청지기 백업 파일 (*." + BackupManager.FILE_EXTENSION + ")",
+        chooser.setFileFilter(new FileNameExtensionFilter("사이교회 재무관리 백업 파일 (*." + BackupManager.FILE_EXTENSION + ")",
                 BackupManager.FILE_EXTENSION));
         if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;

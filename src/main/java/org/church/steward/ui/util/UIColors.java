@@ -3,7 +3,7 @@ package org.church.steward.ui.util;
 import java.awt.Color;
 
 /**
- * 🎨 청지기(Steward) UI 디자인 가이드라인의 컬러 팔레트를 정의한 유틸리티 클래스
+ * 🎨 사이교회 재무관리(Steward) UI 디자인 가이드라인의 컬러 팔레트를 정의한 유틸리티 클래스
  */
 public final class UIColors {
 

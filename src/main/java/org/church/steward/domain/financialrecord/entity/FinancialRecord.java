@@ -41,6 +41,8 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(name = "FINANCIAL_RECORD")
+@org.hibernate.annotations.SQLDelete(sql = "UPDATE FINANCIAL_RECORD SET CANCELLED=TRUE WHERE ID=?")
+@org.hibernate.annotations.SQLRestriction("CANCELLED=FALSE")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -81,6 +83,13 @@ public class FinancialRecord implements DynamicLoggable {
     @Column(nullable = false)
     @LoggableField(name = "금액", format = "#,###원")
     private long amount;
+
+    @Column(nullable = false)
+    private boolean cancelled;
+
+    public void cancel() {
+        this.cancelled = true;
+    }
 
     @Column(length = FinancialRecordConstraints.REMARKS_MAX_LENGTH)
     @LoggableField(name = "비고")

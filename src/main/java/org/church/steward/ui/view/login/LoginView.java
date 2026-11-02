@@ -57,7 +57,7 @@ public class LoginView extends JFrame {
         loadLastUsedId();
 
         // 1. 컴포넌트 초기화
-        titleLabel = new TitleLabel("청지기: 교회 재정 관리", SwingConstants.CENTER);
+        titleLabel = new TitleLabel("사이교회 재무관리: 교회 재정 관리", SwingConstants.CENTER);
 
         idField = new StyledTextField(ComponentSize.LARGE);
         idField.setText(loadLastUsedId());
@@ -171,7 +171,7 @@ public class LoginView extends JFrame {
      * @return
      */
     public void showLoginDialog(BiConsumer<String, String> doLogin) {
-        this.setTitle("청지기 - 로그인");
+        this.setTitle("사이교회 재무관리 - 로그인");
         AppIcons.apply(this);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.setSize(450, 500); // 너비를 400에서 450으로 확대

@@ -593,7 +593,7 @@ class ContactServiceImplTest {
         }
 
         @Test
-        @DisplayName("관계자 삭제_실패 시_수입/지출 내역이 있으면 예외가 발생한다")
+        @DisplayName("수입/지출이 있는 관계자 제거는 비활성화하고 과거 연결을 보존한다")
         void deleteContact_failsDueToFinancialRecord_throwsException() {
             // Given
             Long id = 1L;
@@ -601,9 +601,9 @@ class ContactServiceImplTest {
             when(financialRecordContactRepository.existsByContactId(id)).thenReturn(true);
 
             // When & Then
-            assertThatThrownBy(() -> contactService.deleteContact(id))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("수입/지출 내역이 등록되어 있어서 삭제할 수 없습니다.");
+            contactService.deleteContact(id);
+            assertThat(contactRepository.findById(id).orElseThrow().isHidden()).isTrue();
+            verify(contactRepository, never()).deleteById(id);
         }
 
         private ContactGroupMember createGroupMember(Long groupId) {

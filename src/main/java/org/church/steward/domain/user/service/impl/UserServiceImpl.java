@@ -40,6 +40,12 @@ public class UserServiceImpl implements UserService {
     private final ActivityLogService activityLogService;
     private final EntitySnapshotCapturer entitySnapshotCapturer;
 
+    private void validatePassword(String password) {
+        if (!org.church.steward.infrastructure.security.PasswordPolicy.validate(password, List.of()).isEmpty()) {
+            throw new IllegalArgumentException("비밀번호는 4~64글자로 입력하세요.");
+        }
+    }
+
     @Override
     public void createUser(String id, String rawPassword, String remarks) {
         // 1. ID 패턴과 비고 길이 검증
@@ -52,6 +58,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 2. 비밀번호 해싱 (Argon2id)
+        validatePassword(rawPassword);
         String encodedPassword = passwordEncoder.encode(rawPassword);
 
         // 3. User 엔티티 생성 및 저장
@@ -81,6 +88,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 2. 비밀번호 해싱 (Argon2id)
+        validatePassword(rawPassword);
         String encodedPassword = passwordEncoder.encode(rawPassword);
 
         // 3. User 엔티티 생성 및 저장

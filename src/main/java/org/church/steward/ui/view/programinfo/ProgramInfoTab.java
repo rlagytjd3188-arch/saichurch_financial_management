@@ -74,7 +74,7 @@ public class ProgramInfoTab extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         // 1. Header 영역
-        titleLabel = new TitleLabel("청지기", SwingConstants.CENTER);
+        titleLabel = new TitleLabel("사이교회 재무관리", SwingConstants.CENTER);
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.insets = new Insets(0, 0, 40, 0);
         mainContent.add(titleLabel, gbc);

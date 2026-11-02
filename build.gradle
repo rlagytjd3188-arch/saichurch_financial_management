@@ -10,7 +10,7 @@ plugins {
 
 group = 'org.church.steward'
 // jpackage는 숫자로만 된 버전을 받으므로 "-SNAPSHOT" 같은 접미어를 붙이지 않는다. 릴리스 태그(v1.0.0)와 같아야 한다.
-version = '1.2.0'
+version = '1.3.0'
 
 java {
 	toolchain {
@@ -179,7 +179,7 @@ def jpackageImage = tasks.register('jpackageImage', Exec) {
                 // 라이브러리가 쓸 수 있는 JDK 모듈이다(예: sun.misc.Unsafe).
                 // jpackage는 서비스로만 쓰이는 모듈을 넣지 않으므로 직접 더한다.
                 // jdk.charsets: CSV를 MS949로 읽을 때, jdk.localedata: 한국어 요일 표기("(일)")에 필요하다.
-                '--add-modules', 'java.se,jdk.unsupported,jdk.zipfs,jdk.management,jdk.crypto.cryptoki,jdk.accessibility,jdk.charsets,jdk.localedata',
+                '--add-modules', 'java.se,jdk.httpserver,jdk.unsupported,jdk.zipfs,jdk.management,jdk.crypto.cryptoki,jdk.accessibility,jdk.charsets,jdk.localedata',
                 '--dest', imageDir.get().asFile
     }
 }

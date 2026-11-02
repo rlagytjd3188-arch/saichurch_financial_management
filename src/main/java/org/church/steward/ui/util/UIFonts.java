@@ -1,7 +1,7 @@
 package org.church.steward.ui.util;
 
 /**
- * 🎨 청지기(Steward) UI 디자인 가이드라인의 타이포그래피를 정의한 유틸리티 클래스
+ * 🎨 사이교회 재무관리(Steward) UI 디자인 가이드라인의 타이포그래피를 정의한 유틸리티 클래스
  */
 public final class UIFonts {
 

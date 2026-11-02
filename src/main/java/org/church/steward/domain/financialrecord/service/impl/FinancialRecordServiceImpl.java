@@ -47,6 +47,15 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
     private final ActivityLogService activityLogService;
     private final EntitySnapshotCapturer entitySnapshotCapturer;
     private final ContactGroupService contactGroupService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher accountingEvents;
+
+    private void accountingChanged(FinancialRecord record, boolean created, boolean cancelled) {
+        if (accountingEvents != null && record.getId() != null) {
+            accountingEvents.publishEvent(new RecordAccountingEvent(record.getId(), created, cancelled));
+        }
+    }
+
     private static final long MAX_AMOUNT = 100_000_000_000L; // 1,000억
     private static final Sort LATEST_FIRST = Sort.by(Sort.Direction.DESC, FinancialRecord::getDate,
             FinancialRecord::getId);
@@ -109,6 +118,7 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
 
         financialRecordRepository.save(financialRecord);
         registerContactGroup(type, contactIdSet);
+        accountingChanged(financialRecord, true, false);
         return financialRecord;
     }
 
@@ -146,6 +156,7 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
         financialRecordRepository.save(financialRecord);
         activityLogService.logUpdate(oldSnapshot, financialRecord);
         registerContactGroup(type, contactIdSet);
+        accountingChanged(financialRecord, false, false);
         return financialRecordMapper.toResponseDto(financialRecord);
     }
 
@@ -174,6 +185,7 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
             financialRecord.changeBudget(budget);
             financialRecordRepository.save(financialRecord);
             activityLogService.logUpdate(oldSnapshot, financialRecord);
+            accountingChanged(financialRecord, false, false);
         }
     }
 
@@ -195,6 +207,7 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
             financialRecord.replaceContacts(contacts);
             financialRecordRepository.save(financialRecord);
             activityLogService.logUpdate(oldSnapshot, financialRecord);
+            accountingChanged(financialRecord, false, false);
             hasIncome |= financialRecord.getType() == FinancialRecordType.INCOME;
         }
         // 바꾼 관계자가 모두 같으므로 그룹은 한 번만 확인한다.
@@ -211,7 +224,9 @@ public class FinancialRecordServiceImpl implements FinancialRecordService {
         }
 
         for (FinancialRecord financialRecord : financialRecords) {
-            financialRecordRepository.delete(financialRecord);
+            accountingChanged(financialRecord, false, true);
+            financialRecord.cancel();
+            financialRecordRepository.save(financialRecord);
             activityLogService.logDeletion(financialRecord);
         }
     }

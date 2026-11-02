@@ -1729,8 +1729,10 @@ class FinancialRecordServiceImplTest {
             financialRecordService.deleteFinancialRecords(List.of(1L, 2L));
 
             // Then
-            verify(financialRecordRepository).delete(record1);
-            verify(financialRecordRepository).delete(record2);
+            verify(financialRecordRepository).save(record1);
+            assertThat(record1.isCancelled()).isTrue();
+            verify(financialRecordRepository).save(record2);
+            assertThat(record2.isCancelled()).isTrue();
         }
 
         @Test
@@ -1805,7 +1807,8 @@ class FinancialRecordServiceImplTest {
             financialRecordService.deleteFinancialRecords(List.of(1L, 1L));
 
             // Then
-            verify(financialRecordRepository, times(1)).delete(financialRecord);
+            verify(financialRecordRepository, times(1)).save(financialRecord);
+            assertThat(financialRecord.isCancelled()).isTrue();
         }
 
         @Test

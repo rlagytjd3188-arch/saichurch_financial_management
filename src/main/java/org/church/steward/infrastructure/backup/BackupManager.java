@@ -74,7 +74,7 @@ public class BackupManager {
     private static final String JSON_USER_PASSWORD = "userPassword";
     private static final String JSON_SALT = "salt";
 
-    private static final String INVALID_FILE_MESSAGE = "청지기의 백업 파일이 아니거나 손상된 파일입니다.";
+    private static final String INVALID_FILE_MESSAGE = "사이교회 재무관리의 백업 파일이 아니거나 손상된 파일입니다.";
 
     private final DatabaseManager databaseManager;
     private final AppSettingManager appSettingManager;

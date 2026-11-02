@@ -17,7 +17,9 @@ public class UserSessionHolderImpl implements UserSessionHolder {
 
     @Override
     public LoggedInUser getLoggedInUser() {
-        return currentUser;
+        org.church.steward.infrastructure.security.LoggedInUser requestUser = org.church.steward.finance.RequestIdentity
+                .current();
+        return requestUser != null ? requestUser : currentUser;
     }
 
     @Override

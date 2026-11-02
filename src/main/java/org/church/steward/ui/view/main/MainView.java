@@ -69,6 +69,8 @@ public class MainView extends JFrame {
     private final DataManagementView dataManagementView;
     private final ActivityLogView activityLogView;
     private final ProgramInfoView programInfoView;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.church.steward.finance.FinanceView financeView;
     private JButton selectedButton = null; // 현재 선택된 버튼을 추적하기 위함
     private String selectedCardName = null; // 현재 표시 중인 화면의 카드 이름
 
@@ -88,7 +90,7 @@ public class MainView extends JFrame {
         this.activityLogView = activityLogView;
         this.programInfoView = programInfoView;
 
-        setTitle("청지기 : 교회 재정 관리");
+        setTitle("사이교회 재무관리 : 교회 재정 관리");
         AppIcons.apply(this);
         // 진행 중인 가져오기는 저장되지 않으므로, 창을 닫을 때 확인을 받은 뒤에 끝낸다.
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -97,7 +99,7 @@ public class MainView extends JFrame {
             public void windowClosing(WindowEvent e) {
                 if (dataManagementView.isImportInProgress()) {
                     int answer = JOptionPane.showConfirmDialog(MainView.this,
-                            "진행 중인 가져오기가 있습니다. 프로그램을 끝내면 가져오던 내용이 사라집니다.\n프로그램을 끝낼까요?", "청지기",
+                            "진행 중인 가져오기가 있습니다. 프로그램을 끝내면 가져오던 내용이 사라집니다.\n프로그램을 끝낼까요?", "사이교회 재무관리",
                             JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
                     if (answer != JOptionPane.YES_OPTION) {
                         return;
@@ -132,6 +134,8 @@ public class MainView extends JFrame {
         createMenuButton("보고서", "REPORTING", FontAwesomeSolid.FILE_ALT);
         createMenuButton("예산 관리", "BUDGET", FontAwesomeSolid.COINS);
 
+        createMenuButton("회계·헌금·통계", "FINANCE", FontAwesomeSolid.CHART_BAR);
+        addActivatableView(financeView, "FINANCE");
         addMenuSeparator();
 
         boolean isAdmin = userSessionHolder.getLoggedInUser().isAdmin();

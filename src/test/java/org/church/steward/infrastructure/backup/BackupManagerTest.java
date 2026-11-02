@@ -253,7 +253,7 @@ class BackupManagerTest {
             // When & Then
             assertThatThrownBy(() -> installation.backupManager().inspect(file))
                     .isInstanceOf(BackupException.class)
-                    .hasMessage("청지기의 백업 파일이 아니거나 손상된 파일입니다.");
+                    .hasMessage("사이교회 재무관리의 백업 파일이 아니거나 손상된 파일입니다.");
         }
 
         @Test
