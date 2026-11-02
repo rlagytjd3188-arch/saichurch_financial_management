@@ -8,7 +8,7 @@ if errorlevel 1 goto nojava
 call gradlew.bat --no-daemon --max-workers=2 test bootJar
 if errorlevel 1 goto failed
 if not exist "ChurchSteward-Source" mkdir "ChurchSteward-Source"
-copy /Y "build\libs\church-steward-1.3.4.jar" "ChurchSteward-Source\church-steward.jar" >nul
+copy /Y "build\libs\church-steward-1.3.5.jar" "ChurchSteward-Source\church-steward.jar" >nul
 if errorlevel 1 goto failed
 java -jar "ChurchSteward-Source\church-steward.jar"
 if errorlevel 1 goto failed

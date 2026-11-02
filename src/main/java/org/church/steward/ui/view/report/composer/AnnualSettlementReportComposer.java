@@ -45,7 +45,10 @@ public final class AnnualSettlementReportComposer {
 
         drawSummary(canvas, report);
         canvas.moveDown(ReportStyles.SECTION_SPACING);
-        drawMonthly(canvas, report);
+        if (report.getPeriodTrend() != null && !report.getPeriodTrend().isEmpty())
+            PeriodTrendSection.render(canvas, "연간", report.getPeriodTrend());
+        else
+            drawMonthly(canvas, report);
         canvas.moveDown(ReportStyles.SECTION_SPACING);
         BudgetStatusSection.render(canvas, report.getIncomeStatus(), report.getExpenseStatus(), STATUS_SIZE, "");
 

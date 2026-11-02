@@ -62,14 +62,16 @@ public final class UIColors {
     // Border
     public static final Color BORDER = new Color(210, 215, 220); // #D2D7DC
 
-    // Report (흑백으로 인쇄해도 구분되도록 회색조만 쓴다)
+    // Report: 미리보기·인쇄·PDF가 공유하는 컬러 팔레트
     public static final Color REPORT_PAPER = Color.WHITE; // #FFFFFF
-    public static final Color REPORT_TEXT = Color.BLACK; // #000000
-    public static final Color REPORT_TEXT_SUB = new Color(85, 85, 85); // #555555
-    public static final Color REPORT_LINE = Color.BLACK; // #000000
-    public static final Color REPORT_GRID = new Color(170, 170, 170); // #AAAAAA
-    public static final Color REPORT_FILL = new Color(235, 235, 235); // #EBEBEB
-    public static final Color REPORT_BAR = new Color(85, 85, 85); // #555555
+    public static final Color REPORT_TEXT = new Color(35, 54, 76); // #23364C
+    public static final Color REPORT_TEXT_SUB = new Color(85, 108, 130); // #556C82
+    public static final Color REPORT_LINE = new Color(67, 104, 143); // #43688F
+    public static final Color REPORT_GRID = new Color(207, 220, 233); // #CFDCE9
+    public static final Color REPORT_FILL = new Color(230, 241, 252); // #E6F1FC
+    public static final Color REPORT_BAR = new Color(37, 132, 195); // #2584C3
+    public static final Color REPORT_EXPENSE = new Color(218, 112, 57);
+    public static final Color REPORT_OFFERING = new Color(43, 143, 105);
     public static final Color REPORT_PREVIEW_BACKGROUND = new Color(200, 204, 208); // #C8CCD0
 
     // Error/Warning

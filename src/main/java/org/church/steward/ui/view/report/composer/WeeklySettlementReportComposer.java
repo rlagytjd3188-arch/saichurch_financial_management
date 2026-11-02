@@ -19,7 +19,7 @@ import org.church.steward.ui.view.report.layout.ReportText;
 
 /**
  * 주간 회계 결산 보고서를 배치한다. 위에서부터 제목·기간과 결재란, 개요(전주 잔액, 주간 수입/지출/차액, 현재 잔액), 수입 현황과
- * 지출 현황, 수입 내역과 지출 내역 순이다. 가능한 한 A4 한 장에 담기도록 기본 글자는 12pt 이하로, 간격은 좁게 쓴다.
+ * 지출 현황, 수입 내역과 지출 내역을 표시하며 선택 기간의 컬러 그래프를 함께 싣는다. 내용이 많으면 A4 여러 페이지로 나눈다.
  */
 public final class WeeklySettlementReportComposer {
 
@@ -63,6 +63,7 @@ public final class WeeklySettlementReportComposer {
         drawOverview(canvas, report, monthly);
         canvas.moveDown(SECTION_SPACING);
 
+        PeriodTrendSection.render(canvas, monthly ? "월간" : "주간", report.getPeriodTrend());
         String statusSuffix = String.format(" (%s까지 누계)", report.getEndDate()
                 .format(SHORT_DATE_FORMAT));
         BudgetStatusSection.render(canvas, report.getIncomeStatus(), report.getExpenseStatus(), STATUS_SIZE,

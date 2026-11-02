@@ -55,6 +55,7 @@ public class ReportServiceImpl implements ReportService {
     private final DashboardService dashboardService;
     private final ActivityLogService activityLogService;
     private final ReportMapper reportMapper;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Override
     @Transactional(readOnly = true)
@@ -85,6 +86,7 @@ public class ReportServiceImpl implements ReportService {
                 .endDate(endDate)
                 .previousBalance(summarize(previousRecords).getDifference())
                 .weekly(summarize(weeklyRecords))
+                .periodTrend(periodTrend(fiscalYearId, startDate, endDate, weeklyRecords, false))
                 .incomeStatus(toExecutionRows(incomeTree, incomeTree.getRoots(), records, FinancialRecordType.INCOME))
                 .expenseStatus(
                         toExecutionRows(expenseTree, expenseTree.getRoots(), records, FinancialRecordType.EXPENSE))
@@ -171,6 +173,8 @@ public class ReportServiceImpl implements ReportService {
                 .previousYear(previousSummary)
                 .currentYear(summarize(records))
                 .monthlyTrend(dashboardService.getMonthlyTrend(fiscalYearId))
+                .periodTrend(
+                        periodTrend(fiscalYearId, fiscalYear.getStartDate(), fiscalYear.getEndDate(), records, true))
                 .incomeStatus(toExecutionRows(incomeTree, incomeTree.getRoots(), records, FinancialRecordType.INCOME))
                 .expenseStatus(
                         toExecutionRows(expenseTree, expenseTree.getRoots(), records, FinancialRecordType.EXPENSE))
@@ -239,6 +243,32 @@ public class ReportServiceImpl implements ReportService {
      *
      * @param endDate 이 날짜까지의 내역만 조회한다. null이면 날짜를 제한하지 않는다.
      */
+    private List<org.church.steward.domain.report.dto.PeriodTrendDto> periodTrend(long year, LocalDate from,
+            LocalDate to, List<FinancialRecord> records, boolean monthly) {
+        Set<Long> gifts = new HashSet<>(jdbc.queryForList(
+                "SELECT K.RECORD_ID FROM ACCT_LINK K JOIN FINANCIAL_RECORD R ON R.ID=K.RECORD_ID WHERE R.FISCAL_YEAR_ID=? AND R.DATE BETWEEN ? AND ? AND R.CANCELLED=FALSE AND K.STATUS='POSTED' AND K.OFFERING_TYPE_ID IS NOT NULL",
+                Long.class, year, from, to));
+        Map<String, long[]> buckets = new java.util.TreeMap<>();
+        for (LocalDate day = from; !day.isAfter(to); day = monthly ? day.withDayOfMonth(1).plusMonths(1)
+                : day.plusDays(1))
+            buckets.put(monthly ? java.time.YearMonth.from(day).toString() : day.toString(), new long[3]);
+        for (var record : records) {
+            if (record.getDate().isBefore(from) || record.getDate().isAfter(to))
+                continue;
+            String label = monthly ? java.time.YearMonth.from(record.getDate()).toString()
+                    : record.getDate().toString();
+            long[] totals = buckets.get(label);
+            if (totals == null)
+                continue;
+            int kind = record.getType() == FinancialRecordType.INCOME ? 0 : 1;
+            totals[kind] = Math.addExact(totals[kind], record.getAmount());
+            if (kind == 0 && gifts.contains(record.getId()))
+                totals[2] = Math.addExact(totals[2], record.getAmount());
+        }
+        return buckets.entrySet().stream().map(e -> new org.church.steward.domain.report.dto.PeriodTrendDto(e.getKey(),
+                e.getValue()[0], e.getValue()[1], e.getValue()[2])).toList();
+    }
+
     private List<FinancialRecord> findRecords(Long fiscalYearId, LocalDate endDate) {
         return financialRecordRepository.findAll(FinancialRecordSpecification.searchBy(
                 FinancialRecordSearchRequestDto.builder()

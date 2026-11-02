@@ -66,6 +66,8 @@ class ReportServiceImplTest {
 
     @Mock
     private ActivityLogService activityLogService;
+    @Mock
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** 집계 결과가 DTO에 제대로 담기는지까지 확인하기 위해 실제 매퍼를 쓴다. */
     @Spy

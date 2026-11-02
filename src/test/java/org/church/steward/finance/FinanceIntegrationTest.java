@@ -158,6 +158,93 @@ class FinanceIntegrationTest {
 
     private final LocalDate date = LocalDate.of(2044, 1, 5);
 
+    private long datedRecord(boolean income, long amount, LocalDate day) {
+        long id = record(income, amount);
+        records.updateFinancialRecord(id,
+                FinancialRecordRequestDto.builder().fiscalYearId(9000L).budgetId(income ? 9001L : 9002L).date(day)
+                        .amount(amount).contactIds(List.of(income ? 9003L : 9004L)).build());
+        return id;
+    }
+
+    @Test
+    @DisplayName("주간 그래프는 이전 이월·이후 거래를 제외하고 해당 주 발생액만 표시한다")
+    void weeklyChartsExcludePreviousAndFutureTransactions() {
+        record(true, 100000);
+        long gift = datedRecord(true, 50000, LocalDate.of(2044, 1, 13));
+        engine.classify(gift, account("1100"), account("4000"), giftType(), null);
+        datedRecord(false, 10000, LocalDate.of(2044, 1, 14));
+        datedRecord(true, 70000, LocalDate.of(2044, 1, 19));
+        var report = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 1, 12),
+                LocalDate.of(2044, 1, 18));
+        assertThat(report.getPreviousBalance()).isEqualTo(100000);
+        assertThat(report.getIncomeStatus().stream().mapToLong(x -> x.getActualAmount()).sum()).isEqualTo(150000);
+        assertThat(report.getPeriodTrend()).hasSize(7);
+        assertThat(report.getPeriodTrend().stream().mapToLong(x -> x.income()).sum()).isEqualTo(50000);
+        assertThat(report.getPeriodTrend().stream().mapToLong(x -> x.expense()).sum()).isEqualTo(10000);
+        assertThat(report.getPeriodTrend().stream().mapToLong(x -> x.offerings()).sum()).isEqualTo(50000);
+        assertThat(report.getPeriodTrend().getLast().income()).isZero();
+    }
+
+    @Test
+    @DisplayName("월간·연간 그래프와 컬러 PDF는 선택 기간의 원본 합계와 일치한다")
+    void monthlyAnnualGraphsAndColorPdf(@org.junit.jupiter.api.io.TempDir java.nio.file.Path temp) throws Exception {
+        record(true, 100000);
+        long gift = datedRecord(true, 50000, LocalDate.of(2044, 2, 29));
+        engine.classify(gift, account("1100"), account("4000"), giftType(), null);
+        datedRecord(false, 10000, LocalDate.of(2044, 2, 10));
+        datedRecord(true, 70000, LocalDate.of(2044, 3, 1));
+        var month = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 2, 1), LocalDate.of(2044, 2, 29));
+        assertThat(month.getPeriodTrend()).hasSize(29);
+        assertThat(month.getPeriodTrend().stream().mapToLong(x -> x.income()).sum()).isEqualTo(50000);
+        assertThat(month.getPeriodTrend().stream().mapToLong(x -> x.expense()).sum()).isEqualTo(10000);
+        assertThat(month.getPeriodTrend().stream().mapToLong(x -> x.offerings()).sum()).isEqualTo(50000);
+        var annual = reportService.getAnnualSettlementReport(9000L);
+        assertThat(annual.getPeriodTrend()).hasSize(12);
+        assertThat(annual.getPeriodTrend().stream().mapToLong(x -> x.income()).sum()).isEqualTo(220000);
+        assertThat(annual.getPeriodTrend().stream().mapToLong(x -> x.expense()).sum()).isEqualTo(10000);
+        assertThat(annual.getPeriodTrend().stream().mapToLong(x -> x.offerings()).sum()).isEqualTo(50000);
+        var week = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 2, 5), LocalDate.of(2044, 2, 11));
+        var style = org.church.steward.ui.view.report.layout.ReportStyle.DEFAULT;
+        var documents = List.of(
+                org.church.steward.ui.view.report.composer.WeeklySettlementReportComposer.compose(week, style),
+                org.church.steward.ui.view.report.composer.WeeklySettlementReportComposer.compose(month, style, true),
+                org.church.steward.ui.view.report.composer.AnnualSettlementReportComposer.compose(annual, style));
+        for (int i = 0; i < documents.size(); i++) {
+            var path = temp.resolve("report-" + i + ".pdf");
+            org.church.steward.ui.view.report.output.ReportPdfExporter.export(documents.get(i), path);
+            try (var pdf = org.apache.pdfbox.Loader.loadPDF(path.toFile())) {
+                String text = new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
+                assertThat(text).contains("해당 기간 발생액", "누계 제외", "기간 합계");
+                if (i == 1)
+                    assertThat(text).contains("2044-02-29").doesNotContain("2044-03-01");
+                boolean colored = false;
+                var renderer = new org.apache.pdfbox.rendering.PDFRenderer(pdf);
+                for (int page = 0; page < pdf.getNumberOfPages(); page++) {
+                    var image = renderer.renderImageWithDPI(page, 72);
+                    for (int y = 0; y < image.getHeight() && !colored; y += 3)
+                        for (int x = 0; x < image.getWidth(); x += 3) {
+                            var color = new java.awt.Color(image.getRGB(x, y));
+                            if (Math.abs(color.getRed() - color.getBlue()) > 35 && color.getGreen() < 230) {
+                                colored = true;
+                                break;
+                            }
+                        }
+                }
+                assertThat(colored).isTrue();
+                String samples = System.getenv("SAI_REPORT_SAMPLE_DIR");
+                if (samples != null) {
+                    var dir = java.nio.file.Path.of(samples);
+                    java.nio.file.Files.createDirectories(dir);
+                    java.nio.file.Files.copy(path, dir.resolve("report-" + i + ".pdf"),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    for (int page = 0; page < pdf.getNumberOfPages(); page++)
+                        javax.imageio.ImageIO.write(renderer.renderImageWithDPI(page, 110), "png",
+                                dir.resolve("report-" + i + "-page-" + page + ".png").toFile());
+                }
+            }
+        }
+    }
+
     @Test
     @DisplayName("기초잔액은 금액과 통장만으로 자동 분개하며 수입·헌금에 더하지 않는다")
     void openingBalanceIsAutomaticAndNotIncome() {

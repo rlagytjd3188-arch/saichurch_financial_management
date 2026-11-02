@@ -13,8 +13,8 @@ import org.church.steward.ui.view.report.layout.ReportCanvas;
 import org.church.steward.ui.view.report.layout.ReportText;
 
 /**
- * 월별 수입과 지출을 나란히 세운 막대 차트. 대시보드의 월별 차트와 같은 구조다. 흑백으로 인쇄해도 구분되도록 수입은 진한 회색으로 채우고
- * 지출은 테두리만 그린다. 눈금은 어림값으로 적으며, 정확한 금액은 차트 옆의 표가 보여준다.
+ * 월별 수입과 지출을 나란히 세운 막대 차트. 대시보드의 월별 차트와 같은 구조다. 수입은 파랑, 지출은 주황으로 구분한다. 눈금은
+ * 어림값으로 적으며, 정확한 금액은 차트 옆의 표가 보여준다.
  */
 final class MonthlyTrendChart {
 
@@ -122,9 +122,8 @@ final class MonthlyTrendChart {
             double expenseHeight = barHeight(month.getExpense(), axisTop, plotHeight);
             if (expenseHeight > 0) {
                 // 테두리가 막대의 폭과 높이 밖으로 나가지 않도록 선 굵기의 절반만큼 안쪽에 그린다.
-                canvas.strokeRect(groupLeft + barWidth + BAR_GAP + BAR_LINE / 2,
-                        plotBottom - expenseHeight + BAR_LINE / 2, barWidth - BAR_LINE,
-                        Math.max(0, expenseHeight - BAR_LINE / 2), BAR_LINE, UIColors.REPORT_LINE);
+                canvas.fillRect(groupLeft + barWidth + BAR_GAP, plotBottom - expenseHeight, barWidth, expenseHeight,
+                        UIColors.REPORT_EXPENSE);
             }
 
             String label = showsFullLabel ? fullLabelOf(yearMonth, withYear)
@@ -144,8 +143,7 @@ final class MonthlyTrendChart {
         double x = right - ReportText.width("지출", font);
         canvas.text("지출", font, ReportAlign.LEFT, x, baseline);
         x -= LEGEND_SWATCH_SIZE + 3;
-        canvas.strokeRect(x + BAR_LINE / 2, swatchTop + BAR_LINE / 2, LEGEND_SWATCH_SIZE - BAR_LINE,
-                LEGEND_SWATCH_SIZE - BAR_LINE, BAR_LINE, UIColors.REPORT_LINE);
+        canvas.fillRect(x, swatchTop, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE, UIColors.REPORT_EXPENSE);
 
         x -= 8 + ReportText.width("수입", font);
         canvas.text("수입", font, ReportAlign.LEFT, x, baseline);

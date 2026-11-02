@@ -18,6 +18,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AnnualSettlementReportDto {
     private String fiscalYearName;
+    /** 선택 기간의 일별/월별 발생액. 누계와 별도로 그래프에 사용한다. */
+    @Builder.Default
+    private List<PeriodTrendDto> periodTrend = List.of();
 
     /** 직전 회계 연도의 이름. 직전 회계 연도가 없으면 null */
     private String previousFiscalYearName;

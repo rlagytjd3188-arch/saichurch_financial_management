@@ -22,6 +22,9 @@ public final class ReportPrinter {
     /** 좌표를 비교할 때 소수 계산의 오차로 보는 범위 */
     private static final double TOLERANCE = 0.5;
 
+    private static final java.util.Map<PrinterJob, javax.print.attribute.PrintRequestAttributeSet> REQUESTS = java.util.Collections
+            .synchronizedMap(new java.util.WeakHashMap<>());
+
     private ReportPrinter() {
         // 인스턴스화 방지
     }
@@ -52,7 +55,14 @@ public final class ReportPrinter {
         book.append(new DocumentPrintable(document), format, document.getPageCount());
         job.setPageable(book);
 
-        return job.printDialog() ? job : null;
+        var attributes = new javax.print.attribute.HashPrintRequestAttributeSet();
+        if (job.getPrintService().isAttributeValueSupported(javax.print.attribute.standard.Chromaticity.COLOR, null,
+                null))
+            attributes.add(javax.print.attribute.standard.Chromaticity.COLOR);
+        if (!job.printDialog(attributes))
+            return null;
+        REQUESTS.put(job, attributes);
+        return job;
     }
 
     /**
@@ -63,7 +73,11 @@ public final class ReportPrinter {
      */
     public static boolean print(PrinterJob job) {
         try {
-            job.print();
+            var attributes = REQUESTS.remove(job);
+            if (attributes == null)
+                job.print();
+            else
+                job.print(attributes);
             return true;
         } catch (PrinterAbortException e) {
             return false;
