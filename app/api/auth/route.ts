@@ -1,4 +1,0 @@
-import {cookies} from 'next/headers';
-import {supabase,viewer,failure} from '../../../lib/access';
-export async function POST(req:Request){try{if(!viewer())throw Error('PC에서는 로그인이 필요하지 않습니다.');const origin=req.headers.get('origin');if(!origin||new URL(origin).host!==req.headers.get('host'))throw Error('허용되지 않은 요청입니다.');const {email,password}=await req.json();const {data,error}=await supabase().auth.signInWithPassword({email,password});if(error||!data.session)return Response.json({error:'이메일 또는 비밀번호를 확인하세요.'},{status:401});(await cookies()).set('viewer_token',data.session.access_token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',path:'/',maxAge:data.session.expires_in});return Response.json({ok:true});}catch(e){return failure(e);}}
-export async function DELETE(){(await cookies()).delete('viewer_token');return Response.json({ok:true});}

@@ -1,3 +1,0 @@
-import {localOnly,supabase,failure} from '../../../lib/access';
-import {snapshot,db,audit,atomic} from '../../../lib/db';
-export async function POST(req:Request){try{localOnly(req);const payload=snapshot();const result=await supabase(true).rpc('publish_snapshot',{snapshot_payload:payload});if(result.error)throw Error('게시하지 못했습니다. 외부 DB 설정과 연결을 확인하세요.');atomic(()=>{const now=new Date().toISOString();db().prepare("INSERT INTO settings VALUES ('last_published',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(now);audit('외부 조회 자료 게시','snapshot',null,{at:now});});return Response.json({ok:true});}catch(e){return failure(e);}}
