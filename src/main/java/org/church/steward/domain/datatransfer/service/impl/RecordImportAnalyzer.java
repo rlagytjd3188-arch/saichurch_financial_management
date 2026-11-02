@@ -651,6 +651,29 @@ final class RecordImportAnalyzer {
             setContactTargets(mapping, manual, true);
             return;
         }
+        if (request.isBankStatement()) {
+            Map<Long, String> people = new HashMap<>();
+            for (Contact c : contactsById.values())
+                if (!c.isHidden() && !c.getName()
+                        .equals(org.church.steward.infrastructure.spreadsheet.BankStatementNormalizer.CONTACT))
+                    people.put(c.getId(), c.getName());
+            var ids = org.church.steward.finance.ContactNameMatcher.match(String.join(",", names), people,
+                    List.of("주정헌금", "약정헌금", "감사헌금", "선교헌금", "절기헌금", "특별헌금", "기타헌금"));
+            if (ids.size() == 1) {
+                setContactTargets(mapping, List.of(contactsById.get(ids.getFirst())), false);
+                mapping.note = "이름 자동 연결";
+                return;
+            }
+            var fallback = contactsById.values().stream()
+                    .filter(c -> !c.isHidden() && c.getName()
+                            .equals(org.church.steward.infrastructure.spreadsheet.BankStatementNormalizer.CONTACT))
+                    .toList();
+            if (fallback.size() == 1) {
+                setContactTargets(mapping, fallback, false);
+                mapping.note = "이름 확인 필요";
+                return;
+            }
+        }
         if (names.isEmpty()) {
             mapping.note = "빈 칸에 쓸 관계자를 지정해주세요.";
             return;
@@ -806,6 +829,8 @@ final class RecordImportAnalyzer {
 
     private String identityOf(FinancialRecordType type, LocalDate date, Long budgetId, long amount,
             String description, List<String> contacts) {
+        if (request.isBankStatement())
+            return type + "|" + date + "|" + amount + "|" + Objects.toString(description, "");
         return type + "|" + date + "|" + budgetId + "|" + amount + "|" + Objects.toString(description, "") + "|"
                 + contacts;
     }

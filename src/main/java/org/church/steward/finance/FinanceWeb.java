@@ -360,6 +360,9 @@ public class FinanceWeb {
                 engine.journal(FinanceEngine.number(b.get("year")), LocalDate.parse(b.get("date").toString()),
                         String.valueOf(b.get("memo")), lines, null);
             }
+            case "openingBalance" -> engine.openingBalance(FinanceEngine.number(b.get("year")),
+                    LocalDate.parse(b.get("date").toString()), FinanceEngine.number(b.get("amount")),
+                    b.get("asset") == null ? engine.defaultAsset() : FinanceEngine.number(b.get("asset")));
             case "contact" -> {
                 ContactDto dto = new ContactDto(b.get("id") == null ? null : FinanceEngine.number(b.get("id")),
                         ContactType.INDIVIDUAL, String.valueOf(b.get("name")),
@@ -370,6 +373,12 @@ public class FinanceWeb {
                     contacts.updateContact(dto.getId(), dto.getType(), dto.getName(), dto.getRemarks(), dto.isHidden());
             }
             case "record" -> commands.record(b);
+            case "autoDonors" -> {
+                int changed = commands
+                        .autoConnectDonors(((List<?>) b.get("ids")).stream().map(FinanceEngine::number).toList());
+                send(e, 200, Map.of("changed", changed));
+                return;
+            }
             case "cancelSelected" -> records.deleteFinancialRecords(
                     ((List<?>) b.get("ids")).stream().map(FinanceEngine::number).distinct().toList());
             case "cancel" -> records.deleteFinancialRecords(List.of(FinanceEngine.number(b.get("id"))));

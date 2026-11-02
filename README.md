@@ -1,6 +1,6 @@
-# 사이교회 재무관리 1.3.3
+# 사이교회 재무관리 1.3.4
 
-[1.3.3 변경 안내](docs/updates-1.3.3.md): 카카오뱅크 엑셀 자동 인식, 여러 내역 선택 삭제, 간단한 가져오기 화면을 추가했습니다.
+[1.3.4 변경 안내](docs/updates-1.3.4.md): 헌금자·차변/대변 자동 처리와 금액만 입력하는 기초잔액 화면을 추가했습니다.
 
 교회 수입·지출·예산을 관리하는 Windows 데스크톱 프로그램입니다. 기존 청지기 프로그램을 기반으로 **복식부기, 개인별 헌금, 재무상태표, 그래프 보고서와 읽기 전용 공유 화면**을 추가했습니다.
 
@@ -49,9 +49,9 @@ JDK **25**가 필요합니다. GitHub Desktop에서 Pull 후 **Build-Windows.cmd
 ./gradlew --no-daemon --max-workers=2 test bootJar spotlessCheck
 ```
 
-Linux/macOS 실행에는 GUI 환경이 필요합니다. 완성된 JAR를 `build/` 밖의 별도 폴더로 복사한 후 `java -jar church-steward-1.3.3.jar`를 실행합니다. `build/libs`에서 실제 장부를 운영하지 마세요.
+Linux/macOS 실행에는 GUI 환경이 필요합니다. 완성된 JAR를 `build/` 밖의 별도 폴더로 복사한 후 `java -jar church-steward-1.3.4.jar`를 실행합니다. `build/libs`에서 실제 장부를 운영하지 마세요.
 
-Windows 배포본 전체 빌드: `gradlew.bat packageWindows`. 개발용 브라우저 검증 방법과 구현·DB·테스트 보고서는 [1.3.3 상세 보고서](docs/saichurch-1.3.md)에 있습니다.
+Windows 배포본 전체 빌드: `gradlew.bat packageWindows`. 개발용 브라우저 검증 방법과 구현·DB·테스트 보고서는 [1.3.4 상세 보고서](docs/saichurch-1.3.md)에 있습니다.
 
 ## 라이선스와 원본
 

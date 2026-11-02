@@ -30,6 +30,51 @@ public class FinanceEngine {
         return jdbc.queryForObject("SELECT ID FROM ACCT_ACCOUNT WHERE CODE=?", Long.class, code);
     }
 
+    public Long offeringForBudget(long budget, String kind) {
+        if (!"INCOME".equals(kind))
+            return null;
+        var matches = query(
+                "SELECT T.ID FROM BUDGET B JOIN OFFERING_TYPE T ON T.NAME=B.NAME AND T.ACTIVE=TRUE WHERE B.ID=?",
+                budget);
+        return matches.size() == 1 ? number(matches.getFirst().get("ID")) : null;
+    }
+
+    public long automaticCounterpart(long budget, String kind, Long offering) {
+        if (offering != null)
+            return code("4000");
+        if ("INCOME".equals(kind))
+            return code("4900");
+        var matches = query(
+                "SELECT A.ID FROM ACCT_ACCOUNT A JOIN BUDGET B ON B.NAME=A.NAME WHERE B.ID=? AND A.TYPE='EXPENSE' AND A.ACTIVE=TRUE",
+                budget);
+        return matches.size() == 1 ? number(matches.getFirst().get("ID")) : code("5900");
+    }
+
+    public long defaultAsset() {
+        return code("1100");
+    }
+
+    public long openingBalance(long year, LocalDate date, long amount, long asset) {
+        if (amount <= 0)
+            throw new IllegalArgumentException("기초잔액은 0원보다 크게 입력하세요.");
+        return journal(year, date, "기초잔액", List.of(new Line(asset, amount, 0), new Line(code("3100"), 0, amount)),
+                null);
+    }
+
+    public List<Long> automaticContacts(String text) {
+        Map<Long, String> people = new HashMap<>();
+        for (var c : query("SELECT ID,NAME FROM CONTACT WHERE IS_HIDDEN=FALSE AND NAME<>?",
+                org.church.steward.infrastructure.spreadsheet.BankStatementNormalizer.CONTACT))
+            people.put(number(c.get("ID")), c.get("NAME").toString());
+        return ContactNameMatcher.match(text, people,
+                query("SELECT NAME FROM OFFERING_TYPE").stream().map(t -> t.get("NAME").toString()).toList());
+    }
+
+    public List<Long> unclassifiedContact() {
+        return List.of(number(one("SELECT ID FROM CONTACT WHERE NAME=? AND IS_HIDDEN=FALSE",
+                org.church.steward.infrastructure.spreadsheet.BankStatementNormalizer.CONTACT).get("ID")));
+    }
+
     public static long number(Object value) {
         return Long.parseLong(String.valueOf(value));
     }
@@ -124,7 +169,8 @@ public class FinanceEngine {
         if (!created && !"POSTED".equals(link.get("STATUS")))
             return;
         long asset = link.get("ASSET_ID") == null ? code("1100") : number(link.get("ASSET_ID"));
-        long counterpart = link.get("COUNTERPART_ID") == null ? code("INCOME".equals(r.get("TYPE")) ? "4900" : "5900")
+        long counterpart = link.get("COUNTERPART_ID") == null
+                ? automaticCounterpart(number(r.get("BUDGET_ID")), r.get("TYPE").toString(), null)
                 : number(link.get("COUNTERPART_ID"));
         Long offering = link.get("OFFERING_TYPE_ID") == null ? null : number(link.get("OFFERING_TYPE_ID"));
         if (created && offering == null && "INCOME".equals(r.get("TYPE"))) {

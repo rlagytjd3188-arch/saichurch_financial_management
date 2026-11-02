@@ -324,7 +324,7 @@ public class RecordImportSession extends ImportSession {
         default -> null;
         };
 
-        return RecordImportRequestDto.builder()
+        return RecordImportRequestDto.builder().bankStatement(bankStatement)
                 .rows(getDataRows())
                 .firstRowNumber(getFirstDataRowNumber())
                 .fixedType(fixedType)

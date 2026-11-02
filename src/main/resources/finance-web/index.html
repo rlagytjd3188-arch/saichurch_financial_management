@@ -1445,7 +1445,7 @@
         h +=
           '<section class="card">' +
           selectionActions() +
-          '<div class="actions"><button data-new-record>수입·지출 입력</button><button data-new-journal>전문 회계 입력 / 기초잔액</button></div><p class="muted">일반 입력은 자동 분개합니다. 과거 REVIEW 거래는 계정을 확인해야 합니다. 거래를 클릭하면 차변·대변과 원본을 확인합니다.</p>' +
+          '<div class="actions"><button data-new-record>수입·지출 입력</button><button data-auto-donors>헌금자 자동 연결</button><button data-opening-balance>기초잔액 입력</button><details><summary>고급 회계</summary><button data-new-journal>수동 분개</button></details></div><p class="muted">일반 입력은 자동 분개합니다. 과거 REVIEW 거래는 계정을 확인해야 합니다. 거래를 클릭하면 차변·대변과 원본을 확인합니다.</p>' +
           table(
             ["선택", "일자", "구분", "내역", "금액", "회계 상태", "상세"],
             rows.map((r) => [
@@ -1538,7 +1538,7 @@
         h +=
           '<section class="card">' +
           selectionActions() +
-          '<div class="actions"><h2>헌금 내역</h2><button data-new-gift>헌금 입력</button><button data-new-type>헌금 종류 추가</button></div>' +
+          '<div class="actions"><h2>헌금 내역</h2><button data-new-gift>헌금 입력</button><button data-auto-donors>헌금자 자동 연결</button><button data-new-type>헌금 종류 추가</button></div>' +
           table(
             ["선택", "일자", "헌금자", "헌금 종류", "금액", "상세"],
             gs.map((g) => [
@@ -1762,7 +1762,9 @@
       '" type="' +
       type +
       '" ' +
-      (name === "memo" || name.startsWith("allocation-") ? "" : "required") +
+      (name === "memo" || name === "donorName" || name.startsWith("allocation-")
+        ? ""
+        : "required") +
       "></label>";
     const select = (label, name, options) =>
       "<label>" +
@@ -1785,8 +1787,13 @@
           const fd = new FormData(e.target),
             body = { operation, ...hidden, ...Object.fromEntries(fd) };
           if (fd.has("contacts")) body.contacts = fd.getAll("contacts");
+          if (operation === "record" && String(body.donorName || "").trim())
+            delete body.contacts;
           if (body.active !== undefined) body.active = body.active === "true";
           if (body.offering === "") body.offering = null;
+          if (body.offering === "auto") delete body.offering;
+          if (operation === "record" && !fd.has("manualAccounting"))
+            delete body.counterpart;
           await api("/api/write", body);
           $("modal").close();
           await load();
@@ -1803,7 +1810,7 @@
             .map((c) => String(c.CONTACT_ID))
         : [];
       return (
-        '<label>헌금자 / 수취인 (공동 헌금은 여러 명 선택)<select name="contacts" multiple required>' +
+        '<label>헌금자 / 수취인 (공동 헌금은 여러 명 선택)<select name="contacts" multiple>' +
         data.contacts
           .filter((c) => !c.IS_HIDDEN || selected.includes(String(c.ID)))
           .map(
@@ -1825,19 +1832,20 @@
       form(
         gift ? "헌금 입력" : "수입·지출 입력",
         "record",
-        select(
-          "구분",
-          "kind",
-          opt(
-            [
-              { v: "INCOME", n: "수입" },
-              { v: "EXPENSE", n: "지출" },
-            ],
-            "v",
-            "n",
-            kind,
-          ),
-        ) +
+        '<p class="notice full">이름과 금액을 입력하면 헌금자 연결과 차변·대변을 자동 처리합니다.</p>' +
+          select(
+            "구분",
+            "kind",
+            opt(
+              [
+                { v: "INCOME", n: "수입" },
+                { v: "EXPENSE", n: "지출" },
+              ],
+              "v",
+              "n",
+              kind,
+            ),
+          ) +
           select(
             "회계 연도",
             "year",
@@ -1845,21 +1853,24 @@
           ) +
           field("일자", "date", r?.DATE || $("to").value, "date") +
           field("금액 (원)", "amount", r?.AMOUNT || "", "number") +
+          field("이름 (자동 연결 · 모르면 비워 두세요)", "donorName", "") +
+          select("예산", "budget", "") +
           select(
-            "예산 (구분과 일치해야 함)",
-            "budget",
-            opt(
-              data.budgets.filter(
-                (b) => !data.budgets.some((x) => x.PARENT_ID === b.ID),
+            "헌금 종류",
+            "offering",
+            '<option value="auto">예산에 따라 자동</option><option value="">헌금 아님</option>' +
+              opt(
+                data.types.filter(
+                  (t) => t.ACTIVE || t.ID === r?.OFFERING_TYPE_ID,
+                ),
+                "ID",
+                "NAME",
+                r?.OFFERING_TYPE_ID ||
+                  (gift ? data.types.find((t) => t.ACTIVE)?.ID : "auto"),
               ),
-              "ID",
-              "NAME",
-              r?.BUDGET_ID,
-            ),
           ) +
-          contactPicker(r) +
           select(
-            "자산 계정",
+            "통장",
             "asset",
             opt(
               data.accounts.filter((a) => a.ACTIVE && a.TYPE === "ASSET"),
@@ -1868,6 +1879,14 @@
               r?.ASSET_ID || data.accounts.find((a) => a.CODE === "1100")?.ID,
             ),
           ) +
+          field(
+            "메모 / 내용 (통장 내용의 이름도 자동 인식)",
+            "memo",
+            r?.DESCRIPTION || "",
+          ) +
+          '<details class="full"><summary>직접 지정 (필요할 때만)</summary>' +
+          contactPicker(r) +
+          '<label><input type="checkbox" name="manualAccounting">회계 계정을 직접 지정</label>' +
           select(
             "수익 / 비용 계정",
             "counterpart",
@@ -1882,20 +1901,45 @@
                   ?.ID,
             ),
           ) +
-          select(
-            "헌금 종류 (일반 수입·지출은 없음)",
-            "offering",
-            '<option value="">없음</option>' +
-              opt(
-                data.types.filter((t) => t.ACTIVE),
-                "ID",
-                "NAME",
-                r?.OFFERING_TYPE_ID || (gift ? data.types[0]?.ID : ""),
-              ),
-          ) +
-          field("메모 / 내용", "memo", r?.DESCRIPTION || ""),
+          "</details>",
         r ? { id: r.ID } : {},
       );
+      const inputForm = $("editForm"),
+        budget = inputForm.elements.budget;
+      function updateBudget(preferred) {
+        const choices = data.budgets.filter(
+          (b) =>
+            String(b.FISCAL_YEAR_ID) === inputForm.elements.year.value &&
+            b.TYPE === inputForm.elements.kind.value &&
+            !data.budgets.some((x) => x.PARENT_ID === b.ID),
+        );
+        budget.innerHTML = opt(choices, "ID", "NAME", preferred);
+        if (!budget.value && choices.length) budget.value = choices[0].ID;
+      }
+      updateBudget(r?.BUDGET_ID);
+      inputForm.elements.offering.disabled =
+        inputForm.elements.kind.value === "EXPENSE";
+      inputForm.elements.kind.onchange = () => {
+        inputForm.elements.offering.disabled =
+          inputForm.elements.kind.value === "EXPENSE";
+        updateBudget();
+      };
+      inputForm.elements.year.onchange = () => updateBudget();
+      inputForm.elements.offering.onchange = () => {
+        const type = data.types.find(
+          (t) => String(t.ID) === inputForm.elements.offering.value,
+        );
+        const b = data.budgets.find(
+          (b) =>
+            b.NAME === type?.NAME &&
+            String(b.FISCAL_YEAR_ID) === inputForm.elements.year.value &&
+            b.TYPE === "INCOME",
+        );
+        if (b) {
+          inputForm.elements.kind.value = "INCOME";
+          updateBudget(b.ID);
+        }
+      };
     }
     function recordDetail(id) {
       const r = data.records.find((r) => String(r.ID) === String(id));
@@ -2150,6 +2194,26 @@
         c.ID ? { id: c.ID } : {},
       );
     }
+    function openingBalanceForm() {
+      form(
+        "기존에 모아둔 금액 입력",
+        "openingBalance",
+        '<p class="notice full">통장에 이미 있던 금액을 입력하세요. 수입·헌금으로 중복 집계하지 않고 자동 분개합니다.</p>' +
+          select("회계 연도", "year", opt(data.years, "ID", "NAME")) +
+          field("기준일", "date", $("to").value, "date") +
+          select(
+            "통장",
+            "asset",
+            opt(
+              data.accounts.filter((a) => a.ACTIVE && a.TYPE === "ASSET"),
+              "ID",
+              "NAME",
+              data.accounts.find((a) => a.CODE === "1100")?.ID,
+            ),
+          ) +
+          field("기존 잔액 (원)", "amount", "", "number"),
+      );
+    }
     function journalForm() {
       modal(
         "전문 회계 입력 · 기초잔액",
@@ -2213,6 +2277,31 @@
       }
       const b = e.target.closest("button");
       if (!b) return;
+      if (b.hasAttribute("data-auto-donors")) {
+        try {
+          const ids = (data.records || [])
+            .filter(
+              (r) =>
+                r.TYPE === "INCOME" &&
+                r.DATE >= $("from").value &&
+                r.DATE <= $("to").value,
+            )
+            .map((r) => r.ID);
+          const result = await api("/api/write", {
+            operation: "autoDonors",
+            ids,
+          });
+          await load();
+          alert(
+            result.changed +
+              "건의 헌금자를 자동 연결했습니다. 이름이 불확실한 항목은 미분류로 남겼습니다.",
+          );
+        } catch (x) {
+          message(x);
+        }
+        return;
+      }
+
       if (b.hasAttribute("data-cancel-selected")) {
         const ids = [
           ...new Set(
@@ -2262,6 +2351,7 @@
         else if (b.hasAttribute("data-new-contact")) contactForm();
         else if (b.hasAttribute("data-new-account")) accountForm();
         else if (b.hasAttribute("data-new-type")) typeForm();
+        else if (b.hasAttribute("data-opening-balance")) openingBalanceForm();
         else if (b.hasAttribute("data-new-journal")) journalForm();
         else if (b.dataset.entry) journalDetail(b.dataset.entry);
         else if (

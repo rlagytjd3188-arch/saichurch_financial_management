@@ -91,10 +91,8 @@ const fs = require("node:fs");
     await form.locator("[name=date]").fill("2044-01-06");
     await form.locator("[name=amount]").fill("25000");
     await form.locator("[name=budget]").selectOption("9001");
-    await form.locator("[name=contacts]").selectOption("9003");
-    await form
-      .locator("[name=counterpart]")
-      .selectOption({ label: "헌금수익" });
+    await form.locator("[name=donorName]").fill("검증 개인 이름");
+
     await form.locator("[name=memo]").fill("브라우저 합성 헌금");
     await form.locator("button").click();
     await page.waitForFunction(() =>

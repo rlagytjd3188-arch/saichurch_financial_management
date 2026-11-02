@@ -226,7 +226,7 @@ class ColumnMappingStepPanel extends JPanel {
                         + " / 입출금: " + typeModeCombo.getSelectedItem() + " / 세부 항목은 고급 설정에서 변경할 수 있습니다.");
         if (session.isBankStatement())
             summaryLabel.setText("<html>카카오뱅크 자동 인식 · " + session.getDataRowCount()
-                    + "건<br>입금 → 기타수입 / 출금 → 기타비용<br>거래상대는 미분류로 두고, 내용과 메모는 보존합니다.</html>");
+                    + "건<br>헌금자·예산·차변·대변 자동 처리<br>이름이 정확히 일치하면 연결하고, 불확실한 항목만 미분류로 둡니다.</html>");
         boolean needsSettings = session.validateMapping() != null;
         advanced.setSelected(needsSettings);
         formPanel.setVisible(needsSettings);

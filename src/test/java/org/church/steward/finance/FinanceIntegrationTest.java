@@ -126,7 +126,7 @@ class FinanceIntegrationTest {
         for (int i = 0; i < 10; i++)
             raw.add(List.of("안내문"));
         raw.add(List.of("", "거래일시", "구분", "거래금액", "거래 후 잔액", "거래구분", "내용", "메모"));
-        raw.add(List.of("", "2044.01.05 09:00:00", "입금", "1,000", "11,000", "이체", "합성 입금", "메모"));
+        raw.add(List.of("", "2044.01.05 09:00:00", "입금", "1,000", "11,000", "이체", "검증 개인 이름", "메모"));
         raw.add(List.of("", "2044.01.05 10:00:00", "출금", "-500", "10,500", "이체", "합성 출금", ""));
         raw.add(List.of("", "2044.01.05 11:00:00", "입금", "2,000", "12,500", "이체", "합성 입금", ""));
         var session = new org.church.steward.ui.view.datamanagement.recordimport.RecordImportSession();
@@ -147,12 +147,71 @@ class FinanceIntegrationTest {
         assertThat(engine.report(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 1, 31)).get("income")).isEqualTo("3000");
         assertThat(engine.report(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 1, 31)).get("expense")).isEqualTo("500");
         assertThat(engine.donations(LocalDate.of(2044, 1, 1), LocalDate.of(2044, 1, 31))).isEmpty();
+        assertThat(
+                jdbc.queryForObject("SELECT COUNT(*) FROM FINANCIAL_RECORD_CONTACT WHERE CONTACT_ID=9003", Long.class))
+                .isEqualTo(1L);
+        jdbc.update("UPDATE CONTACT SET IS_HIDDEN=TRUE WHERE ID=9003");
         assertThat(recordImporter.analyze(9000L, request).getItems())
                 .allMatch(org.church.steward.domain.datatransfer.dto.RecordImportItemDto::isDuplicate);
         balanced();
     }
 
     private final LocalDate date = LocalDate.of(2044, 1, 5);
+
+    @Test
+    @DisplayName("기초잔액은 금액과 통장만으로 자동 분개하며 수입·헌금에 더하지 않는다")
+    void openingBalanceIsAutomaticAndNotIncome() {
+        engine.openingBalance(9000, date, 5000000, account("1100"));
+        var report = engine.report(date, date);
+        assertThat(report.get("assets")).isEqualTo("5000000");
+        assertThat(report.get("netAssets")).isEqualTo("5000000");
+        assertThat(report.get("income")).isEqualTo("0");
+        assertThat(report.get("offeringsTotal")).isEqualTo("0");
+        balanced();
+    }
+
+    @Test
+    @DisplayName("이름·예산·금액만 입력하면 헌금자와 차변·대변을 자동으로 연결한다")
+    void simpleEntryAutomaticallyLinksPersonAndJournal() {
+        jdbc.update("UPDATE BUDGET SET NAME='약정헌금' WHERE ID=9001");
+        long id = commands.record(new HashMap<>(Map.of("kind", "INCOME", "year", 9000, "date", date.toString(),
+                "budget", 9001, "amount", 100000, "donorName", "검증 개인 이름", "memo", "자동 입력 검증")));
+        var gift = engine.donations(date, date).getFirst();
+        assertThat(gift.get("CONTACT_ID")).isEqualTo(9003L);
+        assertThat(gift.get("TYPE_NAME")).isEqualTo("약정헌금");
+        assertThat(jdbc.queryForObject("SELECT COUNTERPART_ID FROM ACCT_LINK WHERE RECORD_ID=?", Long.class, id))
+                .isEqualTo(account("4000"));
+        assertThat(engine.report(date, date).get("offeringsTotal")).isEqualTo("100000");
+        balanced();
+    }
+
+    @Test
+    @DisplayName("선교비 지출은 차변 선교비·대변 보통예금을 자동 선택한다")
+    void expenseAutomaticallyUsesBudgetAccount() {
+        jdbc.update("UPDATE BUDGET SET NAME='선교비' WHERE ID=9002");
+        long id = commands.record(new HashMap<>(Map.of("kind", "EXPENSE", "year", 9000, "date", date.toString(),
+                "budget", 9002, "amount", 10000, "donorName", "검증 수취인", "memo", "자동 지출 검증")));
+        assertThat(jdbc.queryForObject("SELECT COUNTERPART_ID FROM ACCT_LINK WHERE RECORD_ID=?", Long.class, id))
+                .isEqualTo(account("5200"));
+        assertThat(engine.report(date, date).get("expense")).isEqualTo("10000");
+        balanced();
+    }
+
+    @Test
+    @DisplayName("기존 미분류 헌금자는 한 번에 자동 연결하고 이미 지정한 사람은 보존한다")
+    void existingUnclassifiedDonorsCanBeConnected() {
+        jdbc.update("INSERT INTO CONTACT(ID,TYPE,NAME,IS_HIDDEN) VALUES(9006,'OTHER','통장거래(미분류)',FALSE)");
+        long id = records.createFinancialRecord(FinancialRecordRequestDto.builder().type(FinancialRecordType.INCOME)
+                .fiscalYearId(9000L).budgetId(9001L).date(date).amount(100000).description("09:00:00 · 검증 개인 이름 약정헌금")
+                .contactIds(List.of(9006L)).build()).getId();
+        long manual = record(true, 20000);
+        assertThat(commands.autoConnectDonors(List.of(id, manual))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT CONTACT_ID FROM FINANCIAL_RECORD_CONTACT WHERE FINANCIAL_RECORD_ID=?",
+                Long.class, id)).isEqualTo(9003L);
+        assertThat(commands.autoConnectDonors(List.of(id, manual))).isZero();
+        assertThat(engine.report(date, date).get("income")).isEqualTo("120000");
+        balanced();
+    }
 
     @Autowired
     org.church.steward.domain.datatransfer.service.RecordImportService recordImporter;

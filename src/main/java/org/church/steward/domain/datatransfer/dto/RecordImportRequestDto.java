@@ -28,6 +28,9 @@ import lombok.NoArgsConstructor;
 @Builder
 public class RecordImportRequestDto {
 
+    /** 은행 표준화 후에는 내용에서 이름을 정확히 찾아 연결하며, 재가져오기는 거래 자체로 비교한다. */
+    private boolean bankStatement;
+
     /** 머리글 아래의 데이터 행. 칸의 값은 글자, 정수, 소수, 날짜 또는 null이다. */
     private List<List<Object>> rows;
 

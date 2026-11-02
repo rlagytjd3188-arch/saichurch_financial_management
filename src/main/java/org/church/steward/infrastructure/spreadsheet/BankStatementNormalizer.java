@@ -62,7 +62,15 @@ public final class BankStatementNormalizer {
             String description = (time.isBlank() ? "" : time + " · ") + get.apply("내용");
             String memo = "일시: " + rawDate + " / 거래: " + get.apply("거래구분") + " / 잔액: " + get.apply("거래후잔액") + " / 메모: "
                     + get.apply("메모");
-            rows.add(List.of(date, kind, amount, kind.equals("입금") ? "기타수입" : "기타비용", description, CONTACT, memo));
+            String budget = kind.equals("입금") ? "기타수입" : "기타비용";
+            if (kind.equals("입금")) {
+                String words = get.apply("내용") + " " + get.apply("메모");
+                var types = List.of("주정헌금", "약정헌금", "감사헌금", "선교헌금", "절기헌금", "특별헌금", "기타헌금").stream()
+                        .filter(words::contains).toList();
+                if (types.size() == 1)
+                    budget = types.getFirst();
+            }
+            rows.add(List.of(date, kind, amount, budget, description, get.apply("내용"), memo));
         }
         return new SpreadsheetData(rows, data.charset());
     }
