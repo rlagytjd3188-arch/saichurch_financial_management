@@ -44,12 +44,18 @@ public class FiscalYearServiceImpl implements FiscalYearService {
                 .collect(Collectors.toList());
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher defaultBudgetEvents;
+
     @Override
     public void createFiscalYear(String name, LocalDate startDate, LocalDate endDate) {
         String trimmedName = validateName(name, null);
         validatePeriod(null, startDate, endDate);
 
-        saveNewFiscalYear(trimmedName, startDate, endDate);
+        FiscalYear created = saveNewFiscalYear(trimmedName, startDate, endDate);
+        if (defaultBudgetEvents != null)
+            defaultBudgetEvents
+                    .publishEvent(new org.church.steward.finance.DefaultBudgetCatalog.Created(created.getId()));
     }
 
     @Override
@@ -77,6 +83,9 @@ public class FiscalYearServiceImpl implements FiscalYearService {
         for (Budget root : roots) {
             copyRecursive(root, newFiscalYear, null, childrenByParent);
         }
+        if (defaultBudgetEvents != null)
+            defaultBudgetEvents
+                    .publishEvent(new org.church.steward.finance.DefaultBudgetCatalog.Created(newFiscalYear.getId()));
     }
 
     private void copyRecursive(Budget source, FiscalYear newFiscalYear, Budget newParent,

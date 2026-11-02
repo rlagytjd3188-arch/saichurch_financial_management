@@ -86,6 +86,10 @@ public class ReportingView extends JPanel implements MenuActivatable {
     private final StyledComboBox<ReportType> typeCombo = new StyledComboBox<>(ReportType.values(),
             ComponentSize.MEDIUM);
     /** 주간 보고서의 대상 주간. 주간 보고서에서만 보여준다. */
+    private final javax.swing.JTextField monthField = new javax.swing.JTextField(java.time.YearMonth.now().toString(),
+            7);
+    private final javax.swing.JLabel monthLabel = new javax.swing.JLabel("조회 월 (YYYY-MM)");
+    private final JPanel periodPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
     private final WeekSelectorPanel weekSelector = new WeekSelectorPanel(this::load);
     private final PrimaryButton searchButton = new PrimaryButton("조회", ComponentSize.MEDIUM);
     private final SecondaryButton pdfButton = new SecondaryButton("PDF 저장", ComponentSize.MEDIUM);
@@ -214,7 +218,13 @@ public class ReportingView extends JPanel implements MenuActivatable {
         JPanel toolbar = new JPanel(new BorderLayout(0, 10));
         toolbar.setOpaque(false);
         toolbar.add(buttonRow, BorderLayout.NORTH);
-        toolbar.add(weekSelector, BorderLayout.CENTER);
+        periodPanel.setOpaque(false);
+        periodPanel.add(weekSelector);
+        periodPanel.add(monthLabel);
+        periodPanel.add(monthField);
+        monthField.setToolTipText("조회 월: YYYY-MM (예: 2026-08)");
+        monthField.addActionListener(_ -> load());
+        toolbar.add(periodPanel, BorderLayout.CENTER);
         toolbar.add(formatBar, BorderLayout.SOUTH);
         updateWeekVisibility();
         return toolbar;
@@ -243,8 +253,30 @@ public class ReportingView extends JPanel implements MenuActivatable {
         }
 
         // 주간 보고서만 기간을 쓴다. 주간은 수입/지출 관리의 "주간"과 같이 일요일부터 토요일까지이며, 회계 연도의 기간을 벗어난 부분은 빠진다.
-        final LocalDate startDate = type.isWeekly() ? weekSelector.getStartDate() : null;
-        final LocalDate endDate = type.isWeekly() ? weekSelector.getEndDate() : null;
+        java.time.YearMonth month = null;
+        if (type == ReportType.MONTHLY_SETTLEMENT) {
+            try {
+                month = java.time.YearMonth.parse(monthField.getText().trim());
+            } catch (java.time.DateTimeException ex) {
+                JOptionPane.showMessageDialog(this, "조회 월을 YYYY-MM 형식으로 입력하세요.");
+                return;
+            }
+        }
+        var fiscal = fiscalYearSelector.getSelectedFiscalYear();
+        LocalDate monthStart = month == null ? null : month.atDay(1),
+                monthEnd = month == null ? null : month.atEndOfMonth();
+        if (month != null && fiscal != null) {
+            if (monthEnd.isBefore(fiscal.getStartDate()) || monthStart.isAfter(fiscal.getEndDate())) {
+                JOptionPane.showMessageDialog(this, "선택한 회계 연도에 포함된 월을 입력하세요.");
+                return;
+            }
+            if (monthStart.isBefore(fiscal.getStartDate()))
+                monthStart = fiscal.getStartDate();
+            if (monthEnd.isAfter(fiscal.getEndDate()))
+                monthEnd = fiscal.getEndDate();
+        }
+        final LocalDate startDate = month != null ? monthStart : type.isWeekly() ? weekSelector.getStartDate() : null;
+        final LocalDate endDate = month != null ? monthEnd : type.isWeekly() ? weekSelector.getEndDate() : null;
         final ReportSettingDto cachedSetting = settings.get(type);
 
         // 글자 폭을 재서 페이지를 나누는 배치 작업도 화면이 멈추지 않도록 조회와 함께 백그라운드에서 한다.
@@ -291,10 +323,10 @@ public class ReportingView extends JPanel implements MenuActivatable {
     private Function<ReportStyle, ReportDocument> fetch(ReportType type, Long fiscalYearId, LocalDate startDate,
             LocalDate endDate) {
         return switch (type) {
-        case WEEKLY_SETTLEMENT -> {
+        case WEEKLY_SETTLEMENT, MONTHLY_SETTLEMENT -> {
             WeeklySettlementReportDto report = reportController.getWeeklySettlementReport(fiscalYearId, startDate,
                     endDate);
-            yield style -> WeeklySettlementReportComposer.compose(report, style);
+            yield style -> WeeklySettlementReportComposer.compose(report, style, type == ReportType.MONTHLY_SETTLEMENT);
         }
         case INCOME_BUDGET_PLAN, EXPENSE_BUDGET_PLAN -> {
             BudgetType budgetType = type == ReportType.INCOME_BUDGET_PLAN ? BudgetType.INCOME : BudgetType.EXPENSE;
@@ -499,6 +531,8 @@ public class ReportingView extends JPanel implements MenuActivatable {
     private void updateWeekVisibility() {
         ReportType type = (ReportType) typeCombo.getSelectedItem();
         weekSelector.setVisible(type != null && type.isWeekly());
+        monthField.setVisible(type == ReportType.MONTHLY_SETTLEMENT);
+        monthLabel.setVisible(type == ReportType.MONTHLY_SETTLEMENT);
         revalidate();
     }
 

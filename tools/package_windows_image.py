@@ -31,6 +31,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--launcher', type=Path, required=True)
     parser.add_argument('--jre', type=Path, required=True)
+    parser.add_argument('--launcher-exe', type=Path, help='Optional verified icon-patched launcher')
     parser.add_argument('--jar', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -45,17 +46,18 @@ def main():
                 name = item.filename
                 if item.is_dir() or name.startswith('ChurchSteward/runtime/') or name.endswith('.jar') or name.endswith('.cfg'):
                     continue
-                out.writestr(name, original.read(name))
+                data=args.launcher_exe.read_bytes() if name=='ChurchSteward/ChurchSteward.exe' and args.launcher_exe else original.read(name)
+                out.writestr(name, data)
             for item in runtime.infolist():
                 if item.is_dir():
                     continue
                 relative = item.filename.removeprefix(root + '/')
                 out.writestr('ChurchSteward/runtime/' + relative, runtime.read(item.filename))
-            out.write(args.jar, 'ChurchSteward/app/church-steward-1.3.0.jar')
-            out.writestr('ChurchSteward/app/ChurchSteward.cfg', '[Application]\r\napp.mainjar=$APPDIR\\church-steward-1.3.0.jar\r\n\r\n[JavaOptions]\r\njava-options=-Djpackage.app-version=1.3.0\r\n')
-            out.writestr('ChurchSteward/app/saichurch-1.3.0.txt', 'Sai Church customized application 1.3.0\n')
-            for file in ['Start-Windows.cmd', 'README.md', 'LICENSE', 'LICENSE-ko', 'docs/saichurch-1.3.md']:
-                target = file if not file.startswith('docs/') else 'saichurch-1.3.md'
+            out.write(args.jar, 'ChurchSteward/app/church-steward-1.3.1.jar')
+            out.writestr('ChurchSteward/app/ChurchSteward.cfg', '[Application]\r\napp.mainjar=$APPDIR\\church-steward-1.3.1.jar\r\n\r\n[JavaOptions]\r\njava-options=-Djpackage.app-version=1.3.1\r\n')
+            out.writestr('ChurchSteward/app/saichurch-1.3.1.txt', 'Sai Church customized application 1.3.1\n')
+            for file in ['Start-Windows.cmd', 'README.md', 'LICENSE', 'LICENSE-ko', 'docs/saichurch-1.3.md', 'docs/updates-1.3.1.md']:
+                target = Path(file).name
                 out.write(repo / file, 'ChurchSteward/' + target)
     with zipfile.ZipFile(args.output) as result:
         assert result.testzip() is None

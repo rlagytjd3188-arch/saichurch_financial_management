@@ -415,8 +415,8 @@ class DataExportServiceImplTest {
     class ExportContactTemplateTest {
 
         @Test
-        @DisplayName("구분, 이름, 비고, 상태 머리글만 있는 빈 양식을 암호 없이 저장한다")
-        void exportContactTemplate_Format_WritesHeadersOnly() {
+        @DisplayName("구분, 이름, 비고, 상태 머리글과 예시가 있는 양식을 암호 없이 저장한다")
+        void exportContactTemplate_Format_WritesExamples() {
             // Given
 
             // When
@@ -425,8 +425,9 @@ class DataExportServiceImplTest {
             // Then
             verify(spreadsheetWriter).write(eq(TARGET), eq(SpreadsheetFormat.CSV), tableCaptor.capture(), isNull());
             assertThat(tableCaptor.getValue())
-                    .extracting(SpreadsheetTable::headers, SpreadsheetTable::rows)
-                    .containsExactly(List.of("구분", "이름", "비고", "상태"), List.of());
+                    .extracting(SpreadsheetTable::headers)
+                    .isEqualTo(List.of("구분", "이름", "비고", "상태"));
+            assertThat(tableCaptor.getValue().rows()).hasSize(2);
         }
     }
 
@@ -435,8 +436,8 @@ class DataExportServiceImplTest {
     class ExportBudgetTemplateTest {
 
         @Test
-        @DisplayName("예산 단계가 셋인 머리글만 있는 빈 양식을 암호 없이 저장한다")
-        void exportBudgetTemplate_Format_WritesHeadersOnly() {
+        @DisplayName("예산 단계가 셋인 머리글과 예시가 있는 양식을 암호 없이 저장한다")
+        void exportBudgetTemplate_Format_WritesExamples() {
             // Given
 
             // When
@@ -445,8 +446,9 @@ class DataExportServiceImplTest {
             // Then
             verify(spreadsheetWriter).write(eq(TARGET), eq(SpreadsheetFormat.CSV), tableCaptor.capture(), isNull());
             assertThat(tableCaptor.getValue())
-                    .extracting(SpreadsheetTable::headers, SpreadsheetTable::rows)
-                    .containsExactly(List.of("구분", "예산 1단계", "예산 2단계", "예산 3단계", "예산액", "수입액/집행액"), List.of());
+                    .extracting(SpreadsheetTable::headers)
+                    .isEqualTo(List.of("구분", "예산 1단계", "예산 2단계", "예산 3단계", "예산액", "수입액/집행액"));
+            assertThat(tableCaptor.getValue().rows()).hasSize(2);
         }
     }
 
@@ -455,8 +457,8 @@ class DataExportServiceImplTest {
     class ExportFinancialRecordTemplateTest {
 
         @Test
-        @DisplayName("예산 단계가 셋인 머리글만 있는 빈 양식을 암호 없이 저장한다")
-        void exportFinancialRecordTemplate_Format_WritesHeadersOnly() {
+        @DisplayName("예산 단계가 셋인 머리글과 예시가 있는 양식을 암호 없이 저장한다")
+        void exportFinancialRecordTemplate_Format_WritesExamples() {
             // Given
 
             // When
@@ -465,10 +467,10 @@ class DataExportServiceImplTest {
             // Then
             verify(spreadsheetWriter).write(eq(TARGET), eq(SpreadsheetFormat.CSV), tableCaptor.capture(), isNull());
             assertThat(tableCaptor.getValue())
-                    .extracting(SpreadsheetTable::headers, SpreadsheetTable::rows)
-                    .containsExactly(
-                            List.of("구분", "일자", "예산 1단계", "예산 2단계", "예산 3단계", "금액", "내용", "봉헌자/수취인", "비고"),
-                            List.of());
+                    .extracting(SpreadsheetTable::headers)
+                    .isEqualTo(
+                            List.of("구분", "일자", "예산 1단계", "예산 2단계", "예산 3단계", "금액", "내용", "봉헌자/수취인", "비고"));
+            assertThat(tableCaptor.getValue().rows()).hasSize(2);
         }
     }
 

@@ -47,15 +47,20 @@ public final class WeeklySettlementReportComposer {
     }
 
     public static ReportDocument compose(WeeklySettlementReportDto report, ReportStyle style) {
+        return compose(report, style, false);
+    }
+
+    public static ReportDocument compose(WeeklySettlementReportDto report, ReportStyle style, boolean monthly) {
+        String title = monthly ? "월간 회계 결산 보고서" : TITLE;
         // 파일 이름으로도 쓰이므로 어느 주의 보고서인지 알 수 있게 회계 연도와 기간을 넣는다.
-        String documentTitle = String.format("%s %s (%s ~ %s)", report.getFiscalYearName(), TITLE,
+        String documentTitle = String.format("%s %s (%s ~ %s)", report.getFiscalYearName(), title,
                 report.getStartDate(), report.getEndDate());
 
         ReportCanvas canvas = new ReportCanvas(documentTitle, style);
-        drawHeader(canvas, report);
+        drawHeader(canvas, report, title);
         canvas.moveDown(HEADER_GAP);
         ReportStyles.drawUnit(canvas, ReportFonts.SIZE_SMALL);
-        drawOverview(canvas, report);
+        drawOverview(canvas, report, monthly);
         canvas.moveDown(SECTION_SPACING);
 
         String statusSuffix = String.format(" (%s까지 누계)", report.getEndDate()
@@ -72,7 +77,7 @@ public final class WeeklySettlementReportComposer {
      * 왼쪽에 제목과 회계 연도·기간을, 오른쪽에 결재란을 놓는다. 높이는 결재란에 맞추되, 글자를 키워 제목과 두 줄의 회계 연도·기간이
      * 들어가지 않으면 그만큼 늘린다.
      */
-    private static void drawHeader(ReportCanvas canvas, WeeklySettlementReportDto report) {
+    private static void drawHeader(ReportCanvas canvas, WeeklySettlementReportDto report, String title) {
         double top = canvas.getY();
 
         ReportStyle style = canvas.getStyle();
@@ -82,7 +87,7 @@ public final class WeeklySettlementReportComposer {
         double height = Math.max(APPROVAL_TITLE_HEIGHT + APPROVAL_SIGN_HEIGHT,
                 ReportText.lineHeight(titleFont) + HEADER_GAP + infoLineHeight * 2);
 
-        canvas.text(TITLE, titleFont, ReportAlign.LEFT, canvas.getLeft(), top + ReportText.ascent(titleFont));
+        canvas.text(title, titleFont, ReportAlign.LEFT, canvas.getLeft(), top + ReportText.ascent(titleFont));
 
         // 회계 연도와 기간은 결재란의 아래쪽에 맞춰 두 줄로 적는다.
         double periodBaseline = top + height - infoLineHeight + ReportText.ascent(infoFont);
@@ -127,12 +132,12 @@ public final class WeeklySettlementReportComposer {
     /**
      * 개요. 전주 잔액에서 주간 수입과 지출을 거쳐 현재 잔액에 이르는 흐름을 한 줄로 보여준다.
      */
-    private static void drawOverview(ReportCanvas canvas, WeeklySettlementReportDto report) {
+    private static void drawOverview(ReportCanvas canvas, WeeklySettlementReportDto report, boolean monthly) {
         ReportTable table = new ReportTable(canvas.getStyle(), OVERVIEW_SIZE,
-                new Column("전주 잔액", 0, ReportAlign.CENTER),
-                new Column("주간 수입", 0, ReportAlign.CENTER),
-                new Column("주간 지출", 0, ReportAlign.CENTER),
-                new Column("주간 차액", 0, ReportAlign.CENTER),
+                new Column(monthly ? "전월 이월액" : "전주 잔액", 0, ReportAlign.CENTER),
+                new Column(monthly ? "월간 수입" : "주간 수입", 0, ReportAlign.CENTER),
+                new Column(monthly ? "월간 지출" : "주간 지출", 0, ReportAlign.CENTER),
+                new Column(monthly ? "월간 차액" : "주간 차액", 0, ReportAlign.CENTER),
                 new Column("현재 잔액", 0, ReportAlign.CENTER));
 
         table.addRow(RowStyle.EMPHASIS, 0,

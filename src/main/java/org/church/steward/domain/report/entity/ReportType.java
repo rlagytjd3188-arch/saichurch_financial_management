@@ -10,6 +10,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ReportType {
 
+    MONTHLY_SETTLEMENT("월간 회계 결산 보고서"),
     WEEKLY_SETTLEMENT("주간 회계 결산 보고서"),
     INCOME_BUDGET_PLAN("회계 연도 수입 예산안"),
     EXPENSE_BUDGET_PLAN("회계 연도 지출 예산안"),

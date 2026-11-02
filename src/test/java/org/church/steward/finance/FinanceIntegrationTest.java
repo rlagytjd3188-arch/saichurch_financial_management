@@ -34,6 +34,82 @@ class FinanceIntegrationTest {
     @Autowired
     UserSessionHolder sessions;
     @Autowired
+    org.church.steward.domain.report.service.ReportService reportService;
+    @Autowired
+    org.church.steward.domain.fiscalyear.service.FiscalYearService fiscalYears;
+    @Autowired
+    DefaultBudgetCatalog defaultBudgets;
+    @Autowired
+    org.church.steward.domain.datatransfer.service.DataExportService exports;
+
+    @Test
+    @DisplayName("월간 보고서는 윤년 월말과 전월 이월액을 반영하고 월간 제목으로 PDF를 저장한다")
+    void monthlyReportAndPdf(@org.junit.jupiter.api.io.TempDir java.nio.file.Path temp) throws Exception {
+        record(true, 100000);
+        long feb = record(true, 50000);
+        records.updateFinancialRecord(feb, FinancialRecordRequestDto.builder().fiscalYearId(9000L).budgetId(9001L)
+                .date(LocalDate.of(2044, 2, 29)).amount(50000).contactIds(List.of(9003L)).build());
+        long march = record(true, 25000);
+        records.updateFinancialRecord(march, FinancialRecordRequestDto.builder().fiscalYearId(9000L).budgetId(9001L)
+                .date(LocalDate.of(2044, 3, 1)).amount(25000).contactIds(List.of(9003L)).build());
+        var monthly = reportService.getWeeklySettlementReport(9000L, LocalDate.of(2044, 2, 1),
+                LocalDate.of(2044, 2, 29));
+        assertThat(monthly.getPreviousBalance()).isEqualTo(100000);
+        assertThat(monthly.getWeekly().getIncome()).isEqualTo(50000);
+        var doc = org.church.steward.ui.view.report.composer.WeeklySettlementReportComposer.compose(monthly,
+                org.church.steward.ui.view.report.layout.ReportStyle.DEFAULT, true);
+        var output = temp.resolve("monthly.pdf");
+        org.church.steward.ui.view.report.output.ReportPdfExporter.export(doc, output);
+        try (var pdf = org.apache.pdfbox.Loader.loadPDF(output.toFile())) {
+            String text = new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
+            assertThat(text).contains("월간 회계 결산 보고서", "월간 수입", "전월 이월액", "50,000").doesNotContain("주간 수입", "25,000");
+        }
+    }
+
+    @Test
+    @DisplayName("수입·지출 기본 예산을 중복 없이 생성하고 기존 금액을 유지한다")
+    void bothBudgetsKeepExistingAmounts() {
+        defaultBudgets.created(new DefaultBudgetCatalog.Created(9000));
+        jdbc.update("UPDATE BUDGET SET AMOUNT=123456 WHERE FISCAL_YEAR_ID=9000 AND TYPE='INCOME' AND NAME='주정헌금'");
+        defaultBudgets.created(new DefaultBudgetCatalog.Created(9000));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM BUDGET WHERE FISCAL_YEAR_ID=9000 AND TYPE='INCOME' AND NAME='주정헌금'",
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT AMOUNT FROM BUDGET WHERE FISCAL_YEAR_ID=9000 AND TYPE='INCOME' AND NAME='주정헌금'", Long.class))
+                .isEqualTo(123456);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM BUDGET WHERE FISCAL_YEAR_ID=9000 AND TYPE='EXPENSE'",
+                Integer.class)).isEqualTo(8);
+        fiscalYears.createFiscalYear("새 기본예산 검증", LocalDate.of(2045, 1, 1), LocalDate.of(2045, 12, 31));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM BUDGET B JOIN FISCAL_YEAR Y ON Y.ID=B.FISCAL_YEAR_ID WHERE Y.NAME='새 기본예산 검증'",
+                Integer.class)).isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("모든 XLSX·CSV 양식에 머리글과 두 작성 예시가 실제 파일로 저장된다")
+    void exampleTemplatesAreRealFiles(@org.junit.jupiter.api.io.TempDir java.nio.file.Path temp) throws Exception {
+        var reader = new org.church.steward.infrastructure.spreadsheet.SpreadsheetReader();
+        for (var format : org.church.steward.infrastructure.spreadsheet.SpreadsheetFormat.values()) {
+            var budget = temp.resolve("budget." + format.getExtension());
+            var records = temp.resolve("records." + format.getExtension());
+            var contacts = temp.resolve("contacts." + format.getExtension());
+            exports.exportBudgetTemplate(budget, format);
+            exports.exportFinancialRecordTemplate(records, format);
+            exports.exportContactTemplate(contacts, format);
+            for (var file : List.of(budget, records, contacts)) {
+                var sheet = reader.read(file, null, null, java.nio.charset.StandardCharsets.UTF_8);
+                assertThat(sheet.rows()).hasSize(3);
+                if (file.equals(budget))
+                    assertThat(sheet.toString()).contains("수입", "지출", "주정헌금", "선교비");
+                else
+                    assertThat(sheet.toString()).contains("예시");
+                assertThat(java.nio.file.Files.size(file)).isGreaterThan(30);
+            }
+        }
+    }
+
+    @Autowired
     FinanceWeb web;
     @Autowired
     org.church.steward.domain.user.repository.UserRepository users;

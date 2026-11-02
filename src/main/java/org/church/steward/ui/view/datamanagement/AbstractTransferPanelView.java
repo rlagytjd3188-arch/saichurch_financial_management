@@ -227,7 +227,7 @@ public abstract class AbstractTransferPanelView extends JPanel implements MenuAc
     protected abstract int export(Long fiscalYearId, Path target, SpreadsheetFormat format, String password);
 
     /**
-     * 머리글만 있는 빈 양식을 파일로 저장한다. 백그라운드 스레드에서 호출된다.
+     * 머리글과 작성 예시가 포함된 양식을 파일로 저장한다. 백그라운드 스레드에서 호출된다.
      */
     protected abstract void exportTemplate(Path target, SpreadsheetFormat format);
 

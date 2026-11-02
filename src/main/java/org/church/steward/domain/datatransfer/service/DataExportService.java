@@ -46,17 +46,17 @@ public interface DataExportService {
     int exportContacts(Path target, SpreadsheetFormat format, String password);
 
     /**
-     * 예산을 가져올 때 쓸 수 있는, 머리글만 있는 빈 양식을 저장한다.
+     * 예산을 가져올 때 쓸 수 있는, 머리글과 작성 예시가 포함된 양식을 저장한다.
      */
     void exportBudgetTemplate(Path target, SpreadsheetFormat format);
 
     /**
-     * 수입/지출 내역을 가져올 때 쓸 수 있는, 머리글만 있는 빈 양식을 저장한다.
+     * 수입/지출 내역을 가져올 때 쓸 수 있는, 머리글과 작성 예시가 포함된 양식을 저장한다.
      */
     void exportFinancialRecordTemplate(Path target, SpreadsheetFormat format);
 
     /**
-     * 관계자를 가져올 때 쓸 수 있는, 머리글만 있는 빈 양식을 저장한다.
+     * 관계자를 가져올 때 쓸 수 있는, 머리글과 작성 예시가 포함된 양식을 저장한다.
      */
     void exportContactTemplate(Path target, SpreadsheetFormat format);
 }

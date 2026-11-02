@@ -196,20 +196,31 @@ public class DataExportServiceImpl implements DataExportService {
     @Transactional(readOnly = true)
     public void exportBudgetTemplate(Path target, SpreadsheetFormat format) {
         spreadsheetWriter.write(target, format,
-                new SpreadsheetTable(BUDGET_TABLE_NAME, budgetHeaders(TEMPLATE_BUDGET_LEVELS), List.of()), null);
+                new SpreadsheetTable(BUDGET_TABLE_NAME, budgetHeaders(TEMPLATE_BUDGET_LEVELS), List.of(
+                        List.of("수입", "헌금수입", "주정헌금", "", 12000000L, 0L),
+                        List.of("지출", "사역비", "선교비", "", 3000000L, 0L))),
+                null);
     }
 
     @Override
     @Transactional(readOnly = true)
     public void exportFinancialRecordTemplate(Path target, SpreadsheetFormat format) {
         spreadsheetWriter.write(target, format,
-                new SpreadsheetTable(RECORD_TABLE_NAME, recordHeaders(TEMPLATE_BUDGET_LEVELS), List.of()), null);
+                new SpreadsheetTable(RECORD_TABLE_NAME, recordHeaders(TEMPLATE_BUDGET_LEVELS), List.of(
+                        List.of("수입", "2026-08-02", "헌금수입", "주정헌금", "", 100000L, "주정헌금 예시", "예시헌금자",
+                                "예시입니다. 실제 자료로 바꿔주세요."),
+                        List.of("지출", "2026-08-03", "사역비", "선교비", "", 50000L, "선교비 지급 예시", "예시선교단체",
+                                "예시입니다. 실제 자료로 바꿔주세요."))),
+                null);
     }
 
     @Override
     @Transactional(readOnly = true)
     public void exportContactTemplate(Path target, SpreadsheetFormat format) {
-        spreadsheetWriter.write(target, format, new SpreadsheetTable(CONTACT_TABLE_NAME, contactHeaders(), List.of()),
+        spreadsheetWriter.write(target, format,
+                new SpreadsheetTable(CONTACT_TABLE_NAME, contactHeaders(),
+                        List.of(List.of("개인", "예시헌금자", "예시입니다. 실제 자료로 바꿔주세요.", "표시"),
+                                List.of("업체", "예시선교단체", "예시입니다. 실제 자료로 바꿔주세요.", "표시"))),
                 null);
     }
 

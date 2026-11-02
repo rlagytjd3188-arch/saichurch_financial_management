@@ -9,8 +9,6 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
@@ -21,11 +19,9 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
-import javax.swing.Timer;
 
 import org.church.steward.domain.programinfo.dto.ProgramInfoDto;
 import org.church.steward.ui.component.ComponentSize;
-import org.church.steward.ui.component.button.IconButton;
 import org.church.steward.ui.component.button.SecondaryButton;
 import org.church.steward.ui.component.label.BadgeLabel;
 import org.church.steward.ui.component.label.DescriptionLabel;
@@ -42,17 +38,12 @@ public class ProgramInfoTab extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private static final int COPY_FEEDBACK_MILLIS = 1500;
-
     private ProgramInfoDto currentInfo;
 
     private TitleLabel titleLabel;
     private JLabel versionLabel;
     private JLabel licenseLabel;
     private JLabel downloadLabel;
-    private JLabel authorLabel;
-    private IconButton copyAuthorBtn;
-    private Timer copyFeedbackTimer;
 
     private WarningNoticePanel noticePanel;
 
@@ -78,19 +69,6 @@ public class ProgramInfoTab extends JPanel {
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.insets = new Insets(0, 0, 40, 0);
         mainContent.add(titleLabel, gbc);
-
-        // 2. Description 영역 (JTextArea 사용으로 줄바꿈 및 간격 조정)
-        gbc.anchor = GridBagConstraints.NORTH;
-        gbc.insets = new Insets(0, 0, 10, 0);
-        // 2. Description 영역 (JTextArea 사용으로 줄바꿈 및 간격 조정)
-        DescriptionLabel description = new DescriptionLabel(
-                "귀 교회에 하나님의 은혜와 성도 간의 사랑이 항상 가득하길 바랍니다.");
-        mainContent.add(description, gbc);
-
-        gbc.insets = new Insets(0, 0, 30, 0);
-        description = new DescriptionLabel(
-                "본 프로그램은 교회 규모에 관계없이 무료로 사용할 수 있는 간편한 재정 관리 도구입니다.");
-        mainContent.add(description, gbc);
 
         // 3. Notice 영역 (JTextArea 사용)
         noticePanel = new WarningNoticePanel(
@@ -173,35 +151,6 @@ public class ProgramInfoTab extends JPanel {
         detailGbc.fill = GridBagConstraints.HORIZONTAL;
         detailPanel.add(downloadLabel, detailGbc);
 
-        // 제작자
-        detailGbc.gridx = 0;
-        detailGbc.insets = new Insets(5, 0, 5, 0);
-        detailGbc.weightx = 0;
-        detailGbc.fill = GridBagConstraints.NONE;
-        detailPanel.add(new BadgeLabel(FontAwesomeSolid.USER, "제작", ComponentSize.MEDIUM), detailGbc);
-
-        // 복사 버튼을 이메일 주소에 붙이기 위해 간격을 5로 줄이고, 왼쪽 여백은 insets로 채워 다른 줄과 맞춘다
-        JPanel authorRowPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        authorRowPanel.setOpaque(false);
-
-        authorLabel = new FieldLabel("-", ComponentSize.MEDIUM);
-        authorRowPanel.add(authorLabel);
-
-        copyAuthorBtn = new IconButton(FontAwesomeSolid.COPY, ComponentSize.MEDIUM);
-        copyAuthorBtn.setToolTipText("이메일 주소 복사");
-        copyAuthorBtn.addActionListener(_ -> copyAuthor());
-        authorRowPanel.add(copyAuthorBtn);
-
-        // 복사한 뒤 잠시 체크 아이콘을 보여주고 원래 아이콘으로 되돌린다
-        copyFeedbackTimer = new Timer(COPY_FEEDBACK_MILLIS, _ -> copyAuthorBtn.setIcon(FontAwesomeSolid.COPY));
-        copyFeedbackTimer.setRepeats(false);
-
-        detailGbc.gridx = 1;
-        detailGbc.insets = new Insets(5, 5, 5, 0);
-        detailGbc.weightx = 1.0;
-        detailGbc.fill = GridBagConstraints.HORIZONTAL;
-        detailPanel.add(authorRowPanel, detailGbc);
-
         // Metadata를 mainContent 아래에 추가하기 위한 Wrapper
         gbc.insets = new Insets(30, 10, 0, 0);
         gbc.gridy = 5;
@@ -234,28 +183,11 @@ public class ProgramInfoTab extends JPanel {
         if (info != null) {
             versionLabel.setText(info.getVersion());
             licenseLabel.setText(info.getLicense());
-            authorLabel.setText(info.getAuthor());
+
             downloadLabel.setText(info.getDownloadUrl());
         }
         revalidate();
         repaint();
-    }
-
-    private void copyAuthor() {
-        if (currentInfo == null || currentInfo.getAuthor() == null) {
-            return;
-        }
-        try {
-            Toolkit.getDefaultToolkit()
-                    .getSystemClipboard()
-                    .setContents(new StringSelection(currentInfo.getAuthor()), null);
-        } catch (IllegalStateException ex) {
-            // 다른 프로그램이 클립보드를 쓰고 있으면 실패한다
-            log.error("Failed to copy author to clipboard", ex);
-            return;
-        }
-        copyAuthorBtn.setIcon(FontAwesomeSolid.CHECK);
-        copyFeedbackTimer.restart();
     }
 
     /**

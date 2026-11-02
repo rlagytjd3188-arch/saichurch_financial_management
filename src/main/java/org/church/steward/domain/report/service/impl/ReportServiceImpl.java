@@ -202,7 +202,7 @@ public class ReportServiceImpl implements ReportService {
     public void logOutput(ReportType reportType, ReportOutputType outputType, Long fiscalYearId, LocalDate startDate,
             LocalDate endDate) {
         String target = findFiscalYear(fiscalYearId).getName();
-        if (reportType.isWeekly()) {
+        if (reportType.isWeekly() || reportType == ReportType.MONTHLY_SETTLEMENT) {
             validatePeriod(startDate, endDate);
             target += " (" + startDate + " ~ " + endDate + ")";
         }

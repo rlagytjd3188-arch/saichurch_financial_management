@@ -31,7 +31,7 @@ public class FinancialRecordTransferPanelView extends AbstractTransferPanelView 
     private static final String IMPORT_DESCRIPTION = "엑셀 또는 CSV 파일의 수입/지출 내역을 선택한 회계 연도에 추가합니다.\n"
             + "예산과 관계자는 새로 만들지 않고, 파일의 값을 등록된 예산과 관계자에 매핑합니다.\n"
             + "이미 있는 내역은 바꾸지 않으며, 가져올 내용을 확인한 뒤에 반영합니다.\n"
-            + "양식은 머리글만 있는 빈 파일로, 가져올 내역을 정리할 때 쓸 수 있습니다.";
+            + "양식은 작성 예시가 포함된 파일로, 가져올 내역을 정리할 때 쓸 수 있습니다.";
 
     private final DataExportController dataExportController;
     private final RecordImportPanel recordImportPanel;
